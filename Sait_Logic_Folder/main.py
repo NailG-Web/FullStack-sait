@@ -176,7 +176,7 @@ def admin_func():
                 Data_Base.close()
 
                 print('ЗАДАЧА ДОБАВЛЕНА')
-                return 'удачно'
+                return flask.redirect(flask.url_for('dashboard'))
             except Exception as error:
                 print('ОШИБКА:', error)
                 return 'ошибка'
