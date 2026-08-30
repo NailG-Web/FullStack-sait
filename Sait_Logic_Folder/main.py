@@ -157,10 +157,10 @@ def admin_func():
         return flask.render_template('login.html', error='Сессия истекла!')
 
     if flask.request.method == 'POST':
-        title = flask.request.form.get('title')
-        text = flask.request.form.get('if')
-        inputs = flask.request.form.get('inputs')
-        outputs = flask.request.form.get('outputs')
+        title = flask.request.form.get('title') or 'Нет имени в настоящий момент'
+        text = flask.request.form.get('if') or 'Условие не было добавлено'
+        inputs = flask.request.form.get('inputs') or ''
+        outputs = flask.request.form.get('outputs') or ''
 
         if title and text and inputs and outputs:
             try:
