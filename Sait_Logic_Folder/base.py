@@ -1,9 +1,9 @@
-import sqlite3
-import os
-
-Data_Folder_Path = os.path.join(os.path.dirname(__file__), '..', 'Data_Folder', 'database.db')
-
 def base():
+    import sqlite3
+    import os
+
+    Data_Folder_Path = os.path.join(os.path.dirname(__file__), '..', 'Data_Folder', 'database.db')
+
     conn = sqlite3.connect(Data_Folder_Path)
     cursor = conn.cursor()
 
@@ -44,6 +44,3 @@ def base():
     ''')
 
     conn.commit()
-
-if __name__ == '__main__':
-    base()
