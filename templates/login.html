@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Онлайн тестирование на профессию IT-специалиста на специально подготовленных задачах с автоматический проверкой кода.">
+    <title>Войти & Создать аккаунт | Школа №153 программирование</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://w3.org viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💻</text></svg>">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    {% if error %}
+        <div class="error-block">
+            <span id="messageicon">&#10007;</span> <p id="messagetxt">{{error}}</p>
+        </div>
+    {% endif %}
+    <div class="container active" id="container">
+        <div class="login-container">
+            <div class="form left-section">
+                <form method="post">
+                    <h2>Войти</h2>
+                    <div class="input"><input name='login' type="text" placeholder="Логин" required></div>
+                    <div class="input"><input name='password' type="password" placeholder="Пароль" required></div>
+                    <button type="submit">Войти</button>
+                </form>
+            </div>
+
+            <div class="form right-section">
+                <form method="post">
+                    <h2>Создать аккаунт</h2>
+                    <div class="input"><input name='name-r' maxlength="30" type="text" placeholder="Имя" required></div>
+                    <div class="input"><input name='surname-r' type="text" placeholder="Фамилия"></div>
+                    <div class="input"><input name='login-r' maxlength="30" type="text" placeholder="Придумайте логин" required></div>
+                    <div class="input"><input name='password-r' maxlength="30" type="password" placeholder="Придумайте пароль" required></div>
+                    <button type="submit">Создать</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="toggle-container">
+            <div class="toggle left-section">
+                <h2>Привет! Уже есть аккаунт?</h2>
+                <p>Нажми на кнопку ниже, чтобы войти.</p>
+                <button id="login-btn">Войти</button>
+            </div>
+
+            <div class="toggle right-section">
+                <h2>Привет! Ещё нет аккаунта?</h2>
+                <p>Нажми на кнопку ниже, чтобы создать.</p>
+                <button id="create-btn">Создать</button>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

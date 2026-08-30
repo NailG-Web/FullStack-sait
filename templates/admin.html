@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://w3.org viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💻</text></svg>">
+
+    <title>Панель админа</title>
+</head>
+<body>
+    <form method="post">
+        <h1>Админ панель</h1>
+        <p>
+            Чтобы добавить 1 тест, нажмите Enter (перенос строки).
+            Чтобы добавить 1 проверку в тесте, нажмите пробел (' ').
+            Для введения строки не требуется использовать одинарные или двойные ковычки.
+        </p>
+        <input type="text" name="title" placeholder="Название">
+        <input type="text" name="if" placeholder="Условие">
+        <textarea name="inputs">Входные данные</textarea>        
+        <textarea name="outputs">Выходные данные</textarea>  
+        <button type="submit">Создать задачу</button>    
+    </form>
+</body>
+</html>

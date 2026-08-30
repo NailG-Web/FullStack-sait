@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='mainstyle.css') }}">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://w3.org viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💻</text></svg>">
+    <title>Главная страница | Школа №153 программирование</title>
+</head>
+<body>
+    <div class="container">
+        <div class="profile">
+            <div class="left">
+                <p>Решено задач: <span>{{info.task_complated}}/{{count}}</span></p>
+            </div>
+            <div class="right">
+                {{info.name}} {{info.surname}}
+            </div>
+        </div>
+
+        <div class="message" id="message">
+            <span id="messageicon">icon</span> <p id="messagetxt">txt!</p>
+        </div>
+
+        <hr>
+
+        <div class="tasks" id="tasks">
+            <div class="task-close">
+                <h2>Задачи</h2>
+                <table id="tasks-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Название</th>
+                            <th>Вердикт</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task in tasks %}
+                            <tr class="row" data-id="{{task.id}}">
+                                <td>{{task.id}}</td>
+                                <td>{{task.title}}</td>
+                                <td class="{{task.task_status}}"></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="task-open" id="task-window" data-task-id="1">
+                <button id="back-button">К задачам</button>
+                <h2 id="title">Название</h2>
+                <p id="text">Условие</p>
+                <textarea name="Student-code" id="code" placeholder="Напишите Ваш код здесь...">
+Program Task;
+var
+begin
+                
+    //Напишите Ваш код здесь
+
+end.
+                </textarea>
+                <div class="error-block" id="error-block">
+                    
+                </div>
+                <button id="submit-btn">Сдать на проверку</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='index.js') }}"></script>
+</body>
+</html>
