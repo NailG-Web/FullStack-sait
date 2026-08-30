@@ -3,6 +3,7 @@ import sqlite3
 import json
 import os
 from test_system import Pascal_Code_Checker as PCC
+from base import base
 
 app = flask.Flask(__name__, template_folder='../templates', static_folder='../static')
 app.secret_key = '61646d696e7363686f6f6c31353370617363616c746573747361697466726f6d6e61696c'
@@ -183,4 +184,5 @@ def admin_func():
 
 
 if __name__ == '__main__':
+    base()
     app.run(host='0.0.0.0', port=5000, debug=True)
