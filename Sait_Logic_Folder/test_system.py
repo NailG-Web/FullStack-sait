@@ -10,26 +10,22 @@ def Pascal_Code_Checker(code, input, output, name):
     with open(filename, "w", encoding="utf-8") as f:
         f.write(code)
     try:
-        compiler_relative_path = "../../Compiler_Folder/pabcnetc.exe"
-        
-        pure_filename = f"solution_{name}.pas"
-
-        print('Начинаю компиляцию')
+        Compiler_Direction = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Compiler_Folder'))
+        Compiler_Path = os.path.join(Compiler_Direction, 'pabcnetc.exe')
+        Code_Path = os.path.abspath(filename)
 
         compile_code = subprocess.run(
-            ["mono", compiler_relative_path, pure_filename], 
+            ["mono", Compiler_Path, Code_Path], 
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             timeout=5,
-            cwd="Data_Folder/Solutions_Folder"
+            cwd=Compiler_Direction
         )
-
-        print('Компилция закончена')
 
         if compile_code.returncode != 0:
             return False, 'Произошла ошибка компиляции!', f'Ошибка компиляции:\n{compile_code.stderr}'
-        print('Начало теста')
+
         for index, (code_input, expect_output) in enumerate(zip(input, output), start=1):
             try:
                 run_code = subprocess.run(
