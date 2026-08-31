@@ -146,7 +146,7 @@ def check_code(id):
         Data_Base.close()
         return flask.jsonify({'status': success, 'message': message, 'serverfault': error})
     except Exception as e:
-        return flask.jsonify({'status': False, 'message': f'Внутренняя ошибка сервера. Попробуйте позже! Ч', 'serverfault': False})
+        return flask.jsonify({'status': False, 'message': f'Внутренняя ошибка сервера. Попробуйте позже! Ч', 'serverfault': e})
 
 
 @app.route('/admin/route/createtask', methods=['GET', 'POST'])
