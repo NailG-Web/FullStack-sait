@@ -13,8 +13,10 @@ def Pascal_Code_Checker(code, input, output, name):
         compiler_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Compiler_Folder', 'pabcnetc.exe'))
         pascal_file_path = os.path.abspath(filename)
         exe_filename = filename.replace('.pas', '.exe')
+        command_string = f'mono "{compiler_path}" "{pascal_file_path}"'
         compile_code = subprocess.run(
-            ["mono", compiler_path, pascal_file_path],
+            command_string,
+            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
