@@ -27,7 +27,7 @@ def Pascal_Code_Checker(code, input, output, name):
         for index, (code_input, expect_output) in enumerate(zip(input, output), start=1):
             try:
                 run_code = subprocess.run(
-                    ["mono", f'solution_{name}.exe'],
+                    ["mono", f"./solution_{name}.exe"],
                     input=code_input,
                     stderr=subprocess.PIPE,
                     stdout=subprocess.PIPE,
