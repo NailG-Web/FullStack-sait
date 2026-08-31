@@ -10,15 +10,17 @@ def Pascal_Code_Checker(code, input, output, name):
     with open(filename, "w", encoding="utf-8") as f:
         f.write(code)
     try:
-        compiler_path = "Compiler_Folder/pabcnetc.exe"
-        pascal_file_path = f"Data_Folder/Solutions_Folder/solution_{name}.pas"
+        compiler_relative_path = "../../Compiler_Folder/pabcnetc.exe"
         
+        pure_filename = f"solution_{name}.pas"
+
         compile_code = subprocess.run(
-            ["mono", compiler_path, pascal_file_path],
+            ["mono", compiler_relative_path, pure_filename], 
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=5
+            timeout=5,
+            cwd="Data_Folder/Solutions_Folder"
         )
 
         if compile_code.returncode != 0:
