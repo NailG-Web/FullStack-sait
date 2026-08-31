@@ -6,7 +6,7 @@ from test_system import Pascal_Code_Checker as PCC
 from base import base
 
 app = flask.Flask(__name__, template_folder='../templates', static_folder='../static')
-app.secret_key = '61646d696e7363686f6f6c31353370617363616c746573747361697466726f6d6e61696c'
+app.secret_key = os.environ.get('MY_FLASK_SECRET_KEY', 'default_local_key')
 
 def Data_Base_Connection():
     current_directory = os.path.dirname(os.path.abspath(__file__))
@@ -106,7 +106,6 @@ def give_task_to_js(id):
                 return flask.jsonify({'status': False, 'message': 'Задача не найдена!'}), 404
             return flask.jsonify({'title': task[0], 'text': task[1]})
         except Exception as e:
-            print(f'!!! ОШИБКА ПОЛУЧЕНИЯ ЗАДАЧИ: {e} !!!')
             return flask.jsonify({'status': False, 'message': 'Внутренняя ошибка сервера. Попробуйте позже!'}), 500
 
 
@@ -147,7 +146,6 @@ def check_code(id):
         Data_Base.close()
         return flask.jsonify({'status': success, 'message': message, 'serverfault': error})
     except Exception as e:
-        print(f'!!! ОШИБКА ПРОВЕРКИ КОДА: {e} !!!')
         return flask.jsonify({'status': False, 'message': f'Внутренняя ошибка сервера. Попробуйте позже!', 'serverfault': False})
 
 
@@ -162,7 +160,7 @@ def admin_func():
         inputs = flask.request.form.get('inputs') or ''
         outputs = flask.request.form.get('outputs') or ''
 
-        if title and text and inputs and outputs:
+        if title and text and (inputs or inputs == '') and (outputs or outputs == ''):
             try:
                 json_inputs = json.dumps([i.strip() for i in inputs.split('\n') if i.strip()])
                 json_outputs = json.dumps([o.strip() for o in outputs.split('\n') if o.strip()])
@@ -175,10 +173,8 @@ def admin_func():
                 Data_Base.commit()
                 Data_Base.close()
 
-                print('ЗАДАЧА ДОБАВЛЕНА')
                 return flask.redirect(flask.url_for('dashboard'))
             except Exception as error:
-                print('ОШИБКА:', error)
                 return 'ошибка'
     return flask.render_template('admin.html')
 

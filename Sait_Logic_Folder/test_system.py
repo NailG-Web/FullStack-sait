@@ -27,7 +27,7 @@ def Pascal_Code_Checker(code, input, output, name):
         for index, (code_input, expect_output) in enumerate(zip(input, output), start=1):
             try:
                 run_code = subprocess.run(
-                    ["mono", os.path.abspath(exe_filename)],
+                    [f"./{exe_filename}"],
                     input=code_input,
                     stderr=subprocess.PIPE,
                     stdout=subprocess.PIPE,
@@ -47,8 +47,7 @@ def Pascal_Code_Checker(code, input, output, name):
                 return False, 'Время истекло', None
         return True, 'Правильно!'
     except Exception as error:
-        print(error)
-        return False, "Внутрення ошибка сервера на стороне компилятора", None
+        return False, "Внутрення ошибка сервера на стороне компилятора", error
 
     finally:
         if os.path.exists(filename):
