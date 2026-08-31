@@ -88,7 +88,7 @@ def dashboard():
 
     Data_Base.close()
      
-    return flask.render_template('dashboard.html', tasks=tasks, info=info, count=tasks_num(),**flask.session)
+    return flask.render_template('dashboard.html', tasks=tasks, info=info, count=tasks_num(), **flask.session)
 
 
 @app.route('/get_task/<int:id>', methods=['GET'])
@@ -106,7 +106,7 @@ def give_task_to_js(id):
                 return flask.jsonify({'status': False, 'message': 'Задача не найдена!'}), 404
             return flask.jsonify({'title': task[0], 'text': task[1]})
         except Exception as e:
-            return flask.jsonify({'status': False, 'message': 'Внутренняя ошибка сервера. Попробуйте позже!'}), 500
+            return flask.jsonify({'status': False, 'message': 'Внутренняя ошибка сервера. Попробуйте позже! П'}), 500
 
 
 @app.route('/check_task/<int:id>', methods=['POST'])
@@ -146,7 +146,7 @@ def check_code(id):
         Data_Base.close()
         return flask.jsonify({'status': success, 'message': message, 'serverfault': error})
     except Exception as e:
-        return flask.jsonify({'status': False, 'message': f'Внутренняя ошибка сервера. Попробуйте позже!', 'serverfault': False})
+        return flask.jsonify({'status': False, 'message': f'Внутренняя ошибка сервера. Попробуйте позже! Ч', 'serverfault': False})
 
 
 @app.route('/admin/route/createtask', methods=['GET', 'POST'])
