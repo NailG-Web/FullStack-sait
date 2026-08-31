@@ -14,6 +14,8 @@ def Pascal_Code_Checker(code, input, output, name):
         
         pure_filename = f"solution_{name}.pas"
 
+        print('Начинаю компиляцию')
+
         compile_code = subprocess.run(
             ["mono", compiler_relative_path, pure_filename], 
             stdout=subprocess.PIPE,
@@ -23,9 +25,11 @@ def Pascal_Code_Checker(code, input, output, name):
             cwd="Data_Folder/Solutions_Folder"
         )
 
+        print('Компилция закончена')
+
         if compile_code.returncode != 0:
             return False, 'Произошла ошибка компиляции!', f'Ошибка компиляции:\n{compile_code.stderr}'
-
+        print('Начало теста')
         for index, (code_input, expect_output) in enumerate(zip(input, output), start=1):
             try:
                 run_code = subprocess.run(
