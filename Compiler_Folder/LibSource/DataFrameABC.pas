@@ -1,0 +1,9682 @@
+﻿// =============================================================
+// СТАТИСТИЧЕСКОЕ СОГЛАШЕНИЕ (DataFrame)
+//
+// Используется выборочная дисперсия (деление на n - 1),
+// как принято в описательной статистике.
+//
+// См. статистическую политику в модуле MLABC.
+// =============================================================
+
+/// Стандартный модуль для работы с табличными данными (датасетами) 
+/// !! DataFrame module for tabular data processing
+unit DataFrameABC;
+
+{$reference System.Xml.dll}
+{$reference System.IO.Compression.dll}
+
+interface
+
+uses DataFrameABCCore;
+
+const DataFrameVersion = '1.1';
+
+/// Краткое создание даты без времени.
+function DT(year, month, day: integer): System.DateTime;
+
+/// Краткое создание даты и времени.
+function DT(year, month, day, hour, minute, second: integer): System.DateTime;
+
+// Реэкспортируем публичные типы для удобства
+type
+  /// Тип соединения (join) таблиц
+  JoinKind = (jkInner, jkLeft, jkRight, jkFull);
+  /// Тип столбца
+  ColumnType = DataFrameABCCore.ColumnType;
+  /// Извлекаемая часть значения DateTime
+  DatePartKind = (dpYear, dpMonth, dpDay, dpHour, dpMinute, dpSecond, dpDayOfWeek, dpTimeOfDay, dpDate);
+  /// Информация о столбце
+  ColumnInfo = DataFrameABCCore.ColumnInfo;
+  /// Типизированное значение ячейки DataFrame
+  DataValue = DataFrameABCCore.DataValue;
+  /// Массив строковых значений
+  StringArray = DataFrameABCCore.StringArray;
+  /// Курсор для итерации по строкам DataFrame
+  DataFrameCursor = DataFrameABCCore.DataFrameCursor;
+  /// Предикат для фильтрации строк
+  CursorPredicate = DataFrameABCCore.CursorPredicate;
+  /// Статистическая информация о числовом столбце
+  DescribeStats = DataFrameABCCore.DescribeStats;
+  
+  IntColumn = DataFrameABCCore.IntColumn;
+  FloatColumn = DataFrameABCCore.FloatColumn;
+  BoolColumn = DataFrameABCCore.BoolColumn;
+  StrColumn = DataFrameABCCore.StrColumn;
+  DateTimeColumn = DataFrameABCCore.DateTimeColumn;
+  
+  IGroupByContext = interface;
+  
+/// Класс для работы с табличными данными (датасетами).
+/// Поддерживает основные операции: фильтрацию, сортировку, группировку, 
+/// соединение таблиц и статистический анализ 
+  DataFrame = class
+  private
+    columns: List<Column>;
+    fschema: DataFrameSchema;
+    fRowCount: integer;
+
+    procedure CommitAddedColumn(c: Column);
+    procedure ValidateColumnsAgainstSchema;
+    procedure ValidateColumnsAgainstSchema(candidate: DataFrameSchema);
+    
+    // Single key методы
+    function JoinInnerSingleKey(other: DataFrame; key: string): DataFrame;
+    function JoinInnerSingleKeyInt(other: DataFrame; leftKey, rightKey: integer): DataFrame;
+    function JoinInnerSingleKeyStr(other: DataFrame; leftKey, rightKey: integer): DataFrame;
+    function JoinInnerSingleKeyBool(other: DataFrame; leftKey, rightKey: integer): DataFrame;
+    
+    function LeftJoinSingleKey(other: DataFrame; key: string): DataFrame;
+    function LeftJoinSingleKeyInt(other: DataFrame; leftKey, rightKey: integer): DataFrame;
+    function LeftJoinSingleKeyStr(other: DataFrame; leftKey, rightKey: integer): DataFrame;
+    function LeftJoinSingleKeyBool(other: DataFrame; leftKey, rightKey: integer): DataFrame;
+    
+    function ReorderBySchema(schema: DataFrameSchema): DataFrame;
+    function RightJoinViaSchema(other: DataFrame; keys: array of string): DataFrame;
+    
+    function FullJoinSingleKey(other: DataFrame; key: string): DataFrame;
+    
+    // Multi key методы
+    function JoinInnerMultiKey(other: DataFrame; keys: array of string): DataFrame;
+    function LeftJoinMultiKey(other: DataFrame; keys: array of string): DataFrame;
+    function FullJoinMultiKey(other: DataFrame; keys: array of string): DataFrame;
+    
+    // Вспомогательные для Join
+    function BuildHashIndex(layout: JoinKeyLayout): Dictionary<JoinKey, List<integer>>;
+    function BuildJoinKeyLayout(keyIndices: array of integer): JoinKeyLayout;
+    function BuildJoinKey(cur: DataFrameCursor; layout: JoinKeyLayout; var hasNA: boolean): JoinKey;
+    
+    procedure AssertSchemaConsistent; // Проверка инвариантов в Debug
+    
+    constructor Create(cols: List<Column>; schema: DataFrameSchema; rowCount: integer := -1);
+    
+    function BuildJoinSchema(right: DataFrame; leftKeys, rightKeys: array of integer; 
+      rightPrefix: string): DataFrameSchema;
+    function BuildJoinSchema(right: DataFrame; leftKeys, rightKeys: array of string): DataFrameSchema;
+
+    function CreateEmptyBySchema(schema: DataFrameSchema): DataFrame;
+    
+    function GetColumn(name: string): Column;
+    function GetSchema: DataFrameSchema;
+    procedure CheckRowIndex(rowIndex: integer);
+    
+    function CloneWithSharedColumns: DataFrame;
+  public
+    /// Создает пустой DataFrame
+    constructor Create;
+    /// Возвращает имена столбцов
+    property ColumnNames: array of string read Schema.ColumnNames;
+
+    /// Возвращает копию схемы DataFrame
+    property Schema: DataFrameSchema read GetSchema;
+    
+    procedure SetSchema(schema: DataFrameSchema);
+    
+    function SetCategorical(names: array of string): DataFrame;
+    
+    function IsCategorical(name: string): boolean; 
+    
+    /// Возвращает внутренний столбец без копирования.
+    /// Не изменяйте его, иначе DataFrame будет повреждён.
+    property Item[name: string]: Column read GetColumn; default;
+    
+    /// Возвращает внутренние столбцы без копирования.
+    /// Не изменяйте их, иначе DataFrame будет повреждён.
+    function GetColumns: sequence of Column;
+    
+    /// Возвращает внутренний столбец без копирования.
+    /// Не изменяйте его, иначе DataFrame будет повреждён.
+    function GetColumn(i: integer): Column;
+
+    /// Служебный низкоуровневый метод внутренней сборки DataFrame.
+    /// Добавляет в текущий DataFrame столбец-синоним,
+    /// разделяющий те же массивы данных и валидности с исходным столбцом.
+    /// Не предназначен для использования в прикладном коде.
+    procedure AddColumnAlias(src: Column);
+    
+    function ExtendSchema(name: string; colType: ColumnType; isCategorical: boolean): DataFrameSchema;
+    
+    
+    /// Возвращает количество строк в DataFrame
+    function RowCount: integer;
+    /// Возвращает количество столбцов в DataFrame
+    function ColumnCount: integer;
+    /// Возвращает тип столбца по номеру
+    function GetColumnType(colIndex: integer): ColumnType;
+    /// Возвращает тип столбца по имени
+    function GetColumnType(name: string): ColumnType := GetColumnType(ColumnIndex(name));
+    /// Возвращает индекс столбца по имени
+    function ColumnIndex(name: string): integer;
+    
+    function HasColumn(name: string): boolean;
+   
+    /// Создает курсор для итерации по строкам
+    function GetCursor: DataFrameCursor;
+    
+    /// Разбивает таблицу на обучающую и тестовую выборки.
+    /// 
+    /// Строки случайным образом перемешиваются и делятся на две части:
+    /// train и test. Доля тестовой выборки задаётся параметром testRatio.
+    /// 
+    /// testRatio = 0.2 означает, что 20% строк попадут в тестовую выборку.
+    /// 
+    /// Если seed >= 0, разбиение будет детерминированным.
+    /// Если seed = -1, используется случайная инициализация генератора.
+    /// 
+    /// Возвращает кортеж (trainDataFrame, testDataFrame).
+    function TrainTestSplit(testRatio: real := 0.2; shuffle: boolean := true; seed: integer := -1): (DataFrame, DataFrame);
+    
+    /// Разбивает таблицу на обучающую и тестовую выборки с сохранением
+    /// распределения целевой переменной (стратификация).
+    ///
+    /// Строки группируются по значениям столбца target, после чего внутри
+    /// каждой группы случайным образом перемешиваются и делятся на train и test
+    /// в заданной пропорции.
+    ///
+    /// testRatio = 0.2 означает, что примерно 20% строк из каждой группы
+    /// попадут в тестовую выборку.
+    ///
+    /// Используется только для задач классификации (категориальный target).
+    ///
+    /// Если seed >= 0, разбиение будет детерминированным.
+    /// Если seed = -1, используется случайная инициализация генератора.
+    ///
+    /// Возвращает кортеж (trainDataFrame, testDataFrame).
+    function StratifiedTrainTestSplit(target: string; testRatio: real := 0.2; seed: integer := -1): (DataFrame, DataFrame);
+    
+    /// Служебный низкоуровневый метод внутренней сборки DataFrame.
+    /// Добавляет в текущий DataFrame столбец целых чисел.
+    /// Не предназначен для использования в прикладном коде.
+    /// Переданные массивы сохраняются как есть.
+    /// Не изменяйте их после передачи в DataFrame
+    procedure AddIntColumn(name: string; data: array of integer; valid: array of boolean := nil);
+    /// Служебный низкоуровневый метод внутренней сборки DataFrame.
+    /// Добавляет в текущий DataFrame столбец вещественных чисел.
+    /// Не предназначен для использования в прикладном коде.
+    /// Переданные массивы сохраняются как есть.
+    /// Не изменяйте их после передачи в DataFrame.
+    procedure AddFloatColumn(name: string; data: array of real; valid: array of boolean := nil);
+    /// Служебный низкоуровневый метод внутренней сборки DataFrame.
+    /// Добавляет в текущий DataFrame строковый столбец.
+    /// Не предназначен для использования в прикладном коде.
+    /// Переданные массивы сохраняются как есть.
+    /// Не изменяйте их после передачи в DataFrame.
+    procedure AddStrColumn(name: string; data: array of string; valid: array of boolean := nil);
+    /// Служебный низкоуровневый метод внутренней сборки DataFrame.
+    /// Добавляет в текущий DataFrame строковый столбец.
+    /// Не предназначен для использования в прикладном коде.
+    /// Переданные массивы сохраняются как есть.
+    /// Не изменяйте их после передачи в DataFrame.
+    procedure AddStrColumn(name: string; data: array of char; valid: array of boolean := nil);
+
+    /// Служебный низкоуровневый метод внутренней сборки DataFrame.
+    /// Добавляет в текущий DataFrame столбец логических значений.
+    /// Не предназначен для использования в прикладном коде.
+    /// Переданные массивы сохраняются как есть.
+    /// Не изменяйте их после передачи в DataFrame.
+    procedure AddBoolColumn(name: string; data: array of boolean; valid: array of boolean := nil);
+    /// Служебный низкоуровневый метод внутренней сборки DataFrame.
+    /// Добавляет в текущий DataFrame столбец DateTime.
+    /// Не предназначен для использования в прикладном коде.
+    /// Переданные массивы сохраняются как есть.
+    /// Не изменяйте их после передачи в DataFrame.
+    procedure AddDateTimeColumn(name: string; data: array of System.DateTime; valid: array of boolean := nil);
+    
+    /// Возвращает целочисленный массив значений столбца с данным именем.
+    function GetIntColumn(name: string): array of integer;
+    /// Возвращает вещественный массив значений столбца с данным именем.
+    function GetFloatColumn(name: string): array of real;
+    /// Возвращает строковый массив значений столбца с данным именем.
+    function GetStrColumn(name: string): array of string;
+    /// Возвращает логический массив значений столбца с данным именем.
+    function GetBoolColumn(name: string): array of boolean;
+    /// Возвращает массив DateTime-значений столбца с данным именем.
+    function GetDateTimeColumn(name: string): array of System.DateTime;
+    
+    /// Возвращает целочисленный массив значений столбца с данным именем.
+    function Int(name: string): array of integer;
+    /// Возвращает целочисленное значение ячейки по индексам строки и столбца.
+    function Int(rowIndex, colIndex: integer): integer;
+    /// Возвращает целочисленное значение ячейки по индексу строки и имени столбца.
+    function Int(rowIndex: integer; colName: string): integer;
+    /// Возвращает вещественный массив значений столбца с данным именем.
+    function Float(name: string): array of real;
+    /// Возвращает вещественное значение ячейки по индексам строки и столбца.
+    function Float(rowIndex, colIndex: integer): real;
+    /// Возвращает вещественное значение ячейки по индексу строки и имени столбца.
+    function Float(rowIndex: integer; colName: string): real;
+    /// Возвращает строковый массив значений столбца с данным именем.
+    function Str(name: string): array of string;
+    /// Возвращает строковое значение ячейки по индексам строки и столбца.
+    function Str(rowIndex, colIndex: integer): string;
+    /// Возвращает строковое значение ячейки по индексу строки и имени столбца.
+    function Str(rowIndex: integer; colName: string): string;
+    /// Возвращает логический массив значений столбца с данным именем.
+    function Bool(name: string): array of boolean;
+    /// Возвращает логическое значение ячейки по индексам строки и столбца.
+    function Bool(rowIndex, colIndex: integer): boolean;
+    /// Возвращает логическое значение ячейки по индексу строки и имени столбца.
+    function Bool(rowIndex: integer; colName: string): boolean;
+    /// Возвращает массив DateTime-значений столбца с данным именем.
+    function DateTime(name: string): array of System.DateTime;
+    /// Возвращает DateTime-значение ячейки по индексам строки и столбца.
+    function DateTime(rowIndex, colIndex: integer): System.DateTime;
+    /// Возвращает DateTime-значение ячейки по индексу строки и имени столбца.
+    function DateTime(rowIndex: integer; colName: string): System.DateTime;
+    
+    /// Вычисляет сумму значений столбца по индексу
+    function Sum(colIndex: integer): real; 
+    /// Вычисляет сумму значений столбца по имени
+    function Sum(colName: string): real;
+    /// Вычисляет сумму значений, задаваемых выражением от строки.
+    /// Невалидные значения (NA) пропускаются.
+    function Sum(selector: DataFrameCursor -> DataValue): real;
+    /// Подсчитывает количество валидных значений в столбце по индексу
+    function Count(colIndex: integer): integer; 
+    /// Подсчитывает количество валидных значений в столбце по имени
+    function Count(colName: string): integer;
+    /// Подсчитывает количество строк, для которых выражение от строки истинно.
+    /// Учитываются только валидные логические значения True.
+    function Count(selector: DataFrameCursor -> DataValue): integer;
+    /// Вычисляет среднее значение столбца по индексу
+    function Mean(colIndex: integer): real; 
+    /// Вычисляет среднее значение столбца по имени
+    function Mean(colName: string): real;
+    /// Вычисляет среднее значений, задаваемых выражением от строки.
+    /// Невалидные значения (NA) пропускаются.
+    function Mean(selector: DataFrameCursor -> DataValue): real;
+    /// Вычисляет медиану по валидным (non-NA) значениям столбца по индексу
+    function Median(colIndex: integer): real;
+    /// Вычисляет медиану по валидным (non-NA) значениям столбца по имени
+    function Median(colName: string): real;
+    /// Вычисляет медиану значений, задаваемых выражением от строки.
+    /// Невалидные значения (NA) пропускаются.
+    function Median(selector: DataFrameCursor -> DataValue): real;
+    /// Находит минимальное значение столбца по индексу
+    function Min(colIndex: integer): real; 
+    /// Находит минимальное значение столбца по имени
+    function Min(colName: string): real;
+    /// Находит минимум значений, задаваемых выражением от строки.
+    /// Невалидные значения (NA) пропускаются.
+    function Min(selector: DataFrameCursor -> DataValue): real;
+    /// Находит максимальное значение столбца по индексу
+    function Max(colIndex: integer): real;
+    /// Находит максимальное значение столбца по имени
+    function Max(colName: string): real;
+    /// Находит максимум значений, задаваемых выражением от строки.
+    /// Невалидные значения (NA) пропускаются.
+    function Max(selector: DataFrameCursor -> DataValue): real;
+    /// Находит минимальное и максимальное значения столбца по индексу
+    function MinMax(colIndex: integer): (real, real); 
+    /// Находит минимальное и максимальное значения столбца по имени
+    function MinMax(colName: string): (real, real);
+    /// Находит минимум и максимум значений, задаваемых выражением от строки.
+    /// Невалидные значения (NA) пропускаются.
+    function MinMax(selector: DataFrameCursor -> DataValue): (real, real);
+    /// Вычисляет дисперсию значений столбца по индексу
+    function Variance(colIndex: integer): real; 
+    /// Вычисляет дисперсию значений столбца по имени
+    function Variance(colName: string): real;
+    /// Вычисляет дисперсию значений, задаваемых выражением от строки.
+    /// Невалидные значения (NA) пропускаются.
+    function Variance(selector: DataFrameCursor -> DataValue): real;
+    /// Вычисляет стандартное отклонение столбца по индексу
+    function Std(colIndex: integer): real; 
+    /// Вычисляет стандартное отклонение столбца по имени
+    function Std(colName: string): real;
+    /// Вычисляет стандартное отклонение значений, задаваемых выражением от строки.
+    /// Невалидные значения (NA) пропускаются.
+    function Std(selector: DataFrameCursor -> DataValue): real;
+    /// Вычисляет среднее и дисперсию столбца по индексу
+    function MeanVariance(colIndex: integer): (real, real); 
+    /// Вычисляет среднее и дисперсию столбца по имени
+    function MeanVariance(colName: string): (real, real);
+    /// Вычисляет среднее и дисперсию значений, задаваемых выражением от строки.
+    /// Невалидные значения (NA) пропускаются.
+    function MeanVariance(selector: DataFrameCursor -> DataValue): (real, real);
+    
+    /// Возвращает статистику столбца по индексу
+    function Stats(colIndex: integer): DescribeStats; 
+    /// Возвращает статистику столбца по имени
+    function Stats(colName: string): DescribeStats;
+    /// Возвращает таблицу описательной статистики по всем числовым столбцам
+    function Describe: DataFrame;
+
+    /// Возвращает уникальные непустые значения столбца
+    /// в порядке первого появления
+    function Unique(colName: string): array of DataValue;
+    /// Возвращает число различных непустых значений столбца
+    function NUnique(colName: string): integer;
+    /// Возвращает таблицу частот значений столбца.
+    /// Результат сортируется по убыванию Count,
+    /// при равенстве частот сохраняется порядок первого появления
+    function ValueCounts(colName: string): DataFrame;
+    /// Возвращает таблицу частот значений столбца с явным именем столбца счётчиков
+    function ValueCounts(colName: string; countColName: string): DataFrame;
+    /// Возвращает число пропусков в столбце
+    function MissingCount(colName: string): integer;
+    /// Возвращает таблицу с числом пропусков по всем столбцам
+    function MissingCounts: DataFrame;
+    /// Удаляет строки, содержащие пропуски хотя бы в одном столбце
+    function DropMissing: DataFrame;
+    /// Удаляет строки, содержащие пропуски в указанных столбцах
+    function DropMissing(columns: array of string): DataFrame;
+    /// Удаляет полные дубликаты строк
+    function DropDuplicates: DataFrame;
+    /// Ограничивает числовой столбец диапазоном [lower, upper]
+    function Clip(colName: string; lower, upper: real): DataFrame;
+    
+    /// Группирует данные по столбцу по индексу.
+    /// Поддерживаемые типы ключей: integer, string, boolean, DateTime.
+    /// Вещественные столбцы (float) не поддерживаются из-за численной нестабильности.
+    function GroupBy(colIndex: integer): IGroupByContext; 
+    
+    /// Группирует данные по столбцу по имени.
+    /// Поддерживаемые типы ключей: integer, string, boolean, DateTime.
+    /// Вещественные столбцы (float) не поддерживаются из-за численной нестабильности.
+    function GroupBy(colName: string): IGroupByContext; 
+    
+    /// Группирует данные по нескольким столбцам по индексам.
+    /// Все столбцы-ключи должны иметь тип integer, string, boolean или DateTime.
+    /// Использование float-столбцов в качестве ключей не поддерживается.
+    function GroupBy(colIndices: array of integer): IGroupByContext; 
+    
+    /// Группирует данные по нескольким столбцам по именам.
+    /// Все столбцы-ключи должны иметь тип integer, string, boolean или DateTime.
+    /// Использование float-столбцов в качестве ключей не поддерживается.
+    function GroupBy(colNames: array of string): IGroupByContext; 
+    
+    /// Возвращает первые n строк 
+    function Head(n: integer := 10): DataFrame;
+    /// Возвращает последние n строк 
+    function Tail(n: integer := 10): DataFrame;
+    
+    /// Фильтрует строки по предикату
+    function Filter(pred: CursorPredicate): DataFrame;
+    /// Выбирает столбцы по индексам
+    function Select(colIndices: array of integer): DataFrame; 
+    /// Выбирает столбцы по именам
+    function Select(colNames: array of string): DataFrame; 
+    /// Сортирует по столбцу по индексу
+    function SortBy(colIndex: integer; descending: boolean := false): DataFrame; 
+    /// Сортирует по столбцу по имени
+    function SortBy(colName: string; descending: boolean := false): DataFrame; 
+    /// Сортирует по нескольким столбцам по индексам
+    function SortBy(colIndices: array of integer; descending: array of boolean): DataFrame; 
+    /// Сортирует по нескольким столбцам по именам
+    function SortBy(colNames: array of string; descending: array of boolean): DataFrame; 
+    
+    /// Удаляет столбцы по индексам
+    function Drop(colIndices: array of integer): DataFrame; 
+    /// Удаляет столбцы по именам
+    function Drop(colNames: array of string): DataFrame; 
+    
+    /// Переименовывает столбец по индексу
+    function Rename(colIndex: integer; newName: string): DataFrame; 
+    /// Переименовывает столбец по имени
+    function Rename(oldName, newName: string): DataFrame; 
+    /// Переименовывает несколько столбцов
+    function Rename(pairs: array of (string, string)): DataFrame; 
+    
+    /// Добавляет готовый целочисленный столбец и возвращает новый DataFrame.
+    function WithColumnInt(name: string; data: array of integer; valid: array of boolean := nil): DataFrame; 
+    /// Добавляет вычисляемый целочисленный столбец и возвращает новый DataFrame.
+    function WithColumnInt(name: string; f: DataFrameCursor -> integer): DataFrame;
+    /// Добавляет вычисляемый целочисленный столбец
+    function WithColumn(name: string; f: DataFrameCursor -> integer): DataFrame := WithColumnInt(name, f);
+    /// Добавляет готовый вещественный столбец и возвращает новый DataFrame.
+    function WithColumnFloat(name: string; data: array of real; valid: array of boolean := nil): DataFrame; 
+    /// Добавляет вычисляемый вещественный столбец и возвращает новый DataFrame.
+    function WithColumnFloat(name: string; f: DataFrameCursor -> real): DataFrame;
+    /// Добавляет вычисляемый вещественный столбец по выражению DataValue.
+    /// Если выражение возвращает NA, в новом столбце создаётся пропуск.
+    function WithColumnFloat(name: string; f: DataFrameCursor -> DataValue): DataFrame;
+    /// Добавляет готовый строковый столбец и возвращает новый DataFrame.
+    function WithColumnStr(name: string; data: array of string; valid: array of boolean := nil): DataFrame; 
+    /// Добавляет вычисляемый строковый столбец и возвращает новый DataFrame.
+    function WithColumnStr(name: string; f: DataFrameCursor -> string): DataFrame;
+    /// Добавляет готовый логический столбец и возвращает новый DataFrame.
+    function WithColumnBool(name: string; data: array of boolean; valid: array of boolean := nil): DataFrame; 
+    /// Добавляет вычисляемый логический столбец и возвращает новый DataFrame.
+    function WithColumnBool(name: string; f: DataFrameCursor -> boolean): DataFrame;
+    /// Добавляет готовый DateTime-столбец и возвращает новый DataFrame.
+    function WithColumnDateTime(name: string; data: array of System.DateTime; valid: array of boolean := nil): DataFrame; 
+    /// Добавляет вычисляемый DateTime-столбец и возвращает новый DataFrame.
+    function WithColumnDateTime(name: string; f: DataFrameCursor -> System.DateTime): DataFrame;
+    /// Добавляет новый столбец, вычисляя указанную часть DateTime-столбца.
+    /// Для dpDate создаётся столбец DateTime, для остальных частей - целочисленный столбец.
+    function WithDatePart(sourceColumn, newColumnName: string; part: DatePartKind): DataFrame;
+    /// Добавляет несколько столбцов, извлекая части из одного DateTime-столбца.
+    function WithDateParts(sourceColumn: string; parts: array of (string, DatePartKind)): DataFrame;
+    
+    /// Заменяет существующий числовой столбец, пересчитывая его по функции от курсора
+    /// Пропущенные значения (NA) сохраняются
+    function ReplaceColumnFloat(colName: string; f: DataFrameCursor -> real): DataFrame;
+    /// Заменяет существующий числовой столбец, пересчитывая его по функции от курсора
+    /// Пропущенные значения (NA) сохраняются
+    function ReplaceColumnInt(colName: string; f: DataFrameCursor -> integer): DataFrame;
+    
+    /// Преобразует сырые значения целочисленного столбца.
+    /// Возвращает новый DataFrame.
+    function MapIntColumnData(name: string; f: integer -> integer): DataFrame;
+    /// Преобразует сырые значения вещественного столбца.
+    /// Возвращает новый DataFrame.
+    function MapFloatColumnData(name: string; f: real -> real): DataFrame;
+    /// Преобразует сырые значения строкового столбца.
+    /// Возвращает новый DataFrame.
+    function MapStrColumnData(name: string; f: string -> string): DataFrame;
+    /// Преобразует сырые значения логического столбца.
+    /// Возвращает новый DataFrame.
+    function MapBoolColumnData(name: string; f: boolean -> boolean): DataFrame;
+    
+    /// Устаревшее имя. Используйте MapIntColumnData.
+    function TransformIntColumn(name: string; f: integer -> integer): DataFrame;
+    /// Устаревшее имя. Используйте MapFloatColumnData.
+    function TransformFloatColumn(name: string; f: real -> real): DataFrame;
+    /// Устаревшее имя. Используйте MapStrColumnData.
+    function TransformStrColumn(name: string; f: string -> string): DataFrame;
+    /// Устаревшее имя. Используйте MapBoolColumnData.
+    function TransformBoolColumn(name: string; f: boolean -> boolean): DataFrame;
+
+    /// Возвращает новый DataFrame со строками с заданными номерами из исходного DataFrame
+    function TakeRows(indices: array of integer): DataFrame;
+    
+    /// Преобразует указанные вещественные столбцы в целочисленные (округление).
+    /// Возвращает новый датафрейм
+    function CastFloatToIntColumns(names: array of string): DataFrame;
+
+    function AddDerivedIntColumn(name: string; f: DataFrameCursor -> integer): DataFrame;
+    
+    /// Соединяет с другим DataFrame по одному ключу
+    function Join(other: DataFrame; key: string; kind: JoinKind := jkInner): DataFrame; 
+    /// Соединяет с другим DataFrame по нескольким ключам
+    function Join(other: DataFrame; keys: array of string; kind: JoinKind := jkInner): DataFrame; 
+    /// Соединяет с другим DataFrame по разным именам ключей
+    function Join(other: DataFrame; leftKeys, rightKeys: array of string; kind: JoinKind := jkInner): DataFrame; 
+
+    /// Склеивает несколько DataFrame по строкам.
+    /// Все таблицы должны иметь одинаковую схему:
+    /// имена столбцов, их порядок, типы и categorical-флаги должны совпадать.
+    /// Возвращает новый DataFrame.
+    static function Concat(params dfs: array of DataFrame): DataFrame;
+    
+    /// Выводит DataFrame с настраиваемым числом строк.
+    /// Для столбцов DateTime можно задать свой формат через dateTimeFormat.
+    procedure Print(maxRows: integer := 10; headRows: integer := -1;
+      decimals: integer := 2; dateTimeFormat: string := nil;
+      headColumns: integer := -1);
+
+    /// Выводит DataFrame с настраиваемым числом строк.
+    /// Для столбцов DateTime можно задать свой формат через dateTimeFormat.
+    procedure Println(maxRows: integer := 10; headRows: integer := -1;
+      decimals: integer := 2; dateTimeFormat: string := nil;
+      headColumns: integer := -1);
+
+    /// Выводит схему датафрейма
+    procedure PrintSchema;
+    /// Выводит размер, схему и количество валидных значений 
+    procedure PrintInfo;
+
+    /// Загружает DataFrame из CSV файла
+    static function FromCsv(
+      filename: string;
+      delimiter: char := ',';
+      hasHeader: boolean := true;
+      columnTypes: Dictionary<string, ColumnType> := nil;
+      categoricalColumns: array of string := nil;
+      sampleSize: integer := 1000;
+      inferTypes: boolean := True;
+      inferCategorical: boolean := True
+    ): DataFrame;
+    /// Загружает DataFrame из многострочной строки в формате CSV
+    static function FromCsvText(
+      text: string;
+      delimiter: char := ',';
+      hasHeader: boolean := true;
+      columnTypes: Dictionary<string, ColumnType> := nil;
+      categoricalColumns: array of string := nil;
+      sampleSize: integer := 1000;
+      inferTypes: boolean := True;
+      inferCategorical: boolean := True
+    ): DataFrame;
+    /// Загружает DataFrame из листа ODS-файла
+    static function FromODS(
+      filename: string;
+      sheet: string := '';
+      hasHeader: boolean := true;
+      columnTypes: Dictionary<string, ColumnType> := nil;
+      categoricalColumns: array of string := nil;
+      sampleSize: integer := 1000;
+      inferTypes: boolean := True;
+      inferCategorical: boolean := True
+    ): DataFrame;
+    /// Сохраняет DataFrame в csv-файл
+    procedure ToCsv(filename: string);
+  private
+    /// Проверяет валидность индекса столбца
+    procedure CheckColumnIndex(colIndex: integer);
+    function DescribeByIndices(colIndices: array of integer): Dictionary<integer, DescribeStats>;
+    function DescribeAll: Dictionary<string, DescribeStats>;
+    /// Добавляет строку из курсора
+    //procedure AppendRowFromCursor(src: DataFrame; cur: DataFrameCursor);
+  end;
+
+  /// Тип операции группировки
+  AggregationKind = (akCount, akSum, akMean, akStd, akMin, akMax);
+  
+  GroupView = class
+  private
+    source: DataFrame;
+    indices: List<integer>;
+  public
+    constructor Create(df: DataFrame; idxs: List<integer>);
+  
+    function Count: integer;
+    function Sum(colName: string): real;
+    function Mean(colName: string): real;
+    function Min(colName: string): real;
+    function Max(colName: string): real;
+  end;
+
+  /// Одна группа строк DataFrame.
+  /// Содержит ключ группы и подтаблицу с принадлежащими ей строками.
+  DataFrameGroup = record
+    Key: DataValue;
+    Data: DataFrame;
+    function ToString: string; override;
+  end;
+
+  /// Интерфейс для группировки данных
+  IGroupByContext = interface
+    /// Возвращает последовательность групп.
+    /// Поддерживается только для группировки по одному столбцу.
+    function Groups: sequence of DataFrameGroup;
+    /// Возвращает DataFrame с количеством строк в каждой группе
+    function Count: DataFrame;
+    /// Возвращает DataFrame со средними значениями указанного столбца по группам
+    function Mean(colName: string): DataFrame;
+    /// Возвращает DataFrame со средними значениями указанных столбцов по группам
+    function Mean(colNames: array of string): DataFrame;
+    /// Возвращает сумму значений указанного столбца по группам
+    function Sum(colName: string): DataFrame;
+    /// Возвращает сумму значений указанных столбцов по группам
+    function Sum(colNames: array of string): DataFrame;
+    /// Возвращает минимальные значения указанного столбца по группам
+    function Min(colName: string): DataFrame;
+    /// Возвращает минимальные значения указанных столбцов по группам
+    function Min(colNames: array of string): DataFrame;
+    /// Возвращает максимальные значения указанного столбца по группам
+    function Max(colName: string): DataFrame;
+    /// Возвращает максимальные значения указанных столбцов по группам
+    function Max(colNames: array of string): DataFrame;
+    /// Возвращает стандартное отклонение указанного столбца по группам
+    function Std(colName: string): DataFrame;
+    /// Возвращает стандартное отклонение указанных столбцов по группам
+    function Std(colNames: array of string): DataFrame;
+    /// Универсальная агрегация для одной колонки
+    function Aggregate(colName: string; kinds: array of AggregationKind): DataFrame;
+    /// Универсальная агрегация для нескольких колонок
+    function Aggregate(colNames: array of string; kinds: array of AggregationKind): DataFrame;
+    
+    function Aggregate(map: Dictionary<string, array of AggregationKind>): DataFrame;
+    
+    /// Возвращает DataFrame с полной статистикой указанного столбца по группам
+    function Describe(colName: string): DataFrame;
+    /// Возвращает DataFrame с полной статистикой всех числовых столбцов по группам
+    function DescribeAll: DataFrame;
+    /// Фильтрация групп по пользовательскому условию
+    function Filter(pred: Func<GroupView, boolean>): DataFrame;
+  end;
+  
+type
+/// Статистические методы для анализа табличных данных
+/// Используются совместно с DataFrame для анализа и подготовки данных
+  Statistics = static class
+  public
+    /// Коэффициент корреляции Пирсона между двумя числовыми столбцами
+    /// Пропущенные значения (NA) игнорируются попарно
+    static function Correlation(df: DataFrame; colX, colY: string): real;
+  
+    /// Матрица корреляций Пирсона для всех числовых столбцов 
+    /// Первый столбец содержит имена признаков
+    static function CorrelationMatrix(df: DataFrame): DataFrame;
+  
+    /// Стандартизует числовой столбец: (x - mean) / std
+    /// Пропущенные значения (NA) сохраняются
+    static function Standardize(df: DataFrame; colName: string): DataFrame;
+    
+    /// Стандартизует все числовые столбцы: (x - mean) / std
+    static function StandardizeAll(df: DataFrame): DataFrame;
+  
+    /// Нормализует числовой столбец в диапазон [0, 1]
+    /// Пропущенные значения (NA) сохраняются
+    static function Normalize(df: DataFrame; colName: string): DataFrame;
+    
+    /// Нормализует все числовые столбцы в диапазон [0, 1]
+    /// Пропущенные значения (NA) сохраняются
+    static function NormalizeAll(df: DataFrame): DataFrame;  
+  
+    /// Вычисляет p-квантиль числового столбца (0 ≤ p ≤ 1)
+    /// Пропущенные значения (NA) игнорируются
+    static function Quantile(df: DataFrame; colName: string; p: real): real;
+  
+    /// Вычисляет медиану числового столбца
+    /// Эквивалентна Quantile(..., 0.5)
+    static function Median(df: DataFrame; colName: string): real;
+  end;  
+
+type
+  /// Статический класс для загрузки данных из CSV файлов
+  CsvLoader = static class
+    /// Загружает DataFrame из CSV файла
+    static function Load(
+      filename: string; 
+      delimiter: char := ','; 
+      hasHeader: boolean := true;      
+      encoding: Encoding := nil;
+      missingValues: array of string := nil; // Значения, считающиеся пропущенными
+      trimWhitespace: boolean := true;
+      strict: boolean := False;              // Строгий режим (проверка формата) - бросать ли исключения 
+      columnTypes: Dictionary<string, ColumnType> := nil;
+      sampleSize: integer := 1000;
+      ignoreColumns: array of string := nil;
+      inferTypes: boolean := True;
+      forceStringColumns: array of string := nil;
+      categoricalColumns: array of string := nil;
+      inferCategorical: boolean := false;
+      maxCategoricalCardinality: integer := 100;
+      maxCategoricalRatio: real := 0.2;
+      idThreshold: real := 0.8;
+      minFrequency: integer := 5
+    ): DataFrame;
+
+    /// Загружает DataFrame из многострочной строки в формате CSV
+    static function LoadFromLines(
+      lines: sequence of string;
+      delimiter: char := ',';
+      hasHeader: boolean := true;
+      missingValues: array of string := nil;
+      trimWhitespace: boolean := true;
+      strict: boolean := False;
+      columnTypes: Dictionary<string, ColumnType> := nil;
+      sampleSize: integer := 1000;
+      ignoreColumns: array of string := nil;
+      inferTypes: boolean := True;
+      forceStringColumns: array of string := nil;
+      categoricalColumns: array of string := nil;
+      inferCategorical: boolean := false;
+      maxCategoricalCardinality: integer := 100;
+      maxCategoricalRatio: real := 0.2;
+      idThreshold: real := 0.8;
+      minFrequency: integer := 5
+    ): DataFrame;
+  end;
+
+  /// Читает листы ODS и возвращает их как массив строк ячеек.
+  /// Первая версия не учитывает слитые ячейки и форматирование.
+  ODSReader = static class
+    /// Читает указанный лист ODS-файла.
+    /// Если sheet = '', используется первый лист.
+    static function ReadSheet(filename: string; sheet: string := ''): array of StringArray;
+  end;
+  
+  CsvSaver = static class 
+    static procedure Save(df: DataFrame; filename: string;
+      delimiter: char := ','; header: boolean := true);
+  end; 
+  
+implementation
+
+uses MLExceptions, System.Globalization, System.Text, System.Xml, System.IO, System.IO.Compression;
+
+const
+  ER_COLS_NULL =
+    'cols не может быть nil!!cols cannot be nil';
+  ER_SCHEMA_NULL =
+    'schema не может быть nil!!schema cannot be nil';
+  ER_COLS_SCHEMA_MISMATCH =
+    'Количество столбцов не совпадает со схемой!!Columns count and schema mismatch';
+  ER_SCHEMA_NAME_MISMATCH =
+    'Имя столбца #{0} не совпадает со схемой: "{1}" vs "{2}"!!Column name #{0} does not match schema: "{1}" vs "{2}"';
+  ER_SCHEMA_TYPE_MISMATCH =
+    'Тип столбца "{0}" не совпадает со схемой: {1} vs {2}!!Column type "{0}" does not match schema: {1} vs {2}';
+  ER_COLUMN_ROWCOUNT_MISMATCH =
+    'Длина столбца "{0}" не совпадает с ожидаемой: {1} vs {2}!!Column "{0}" row count does not match expected: {1} vs {2}';
+  ER_JOIN_KEY_TYPE_MISMATCH =
+    'Типы ключей соединения не совпадают!!Join key types mismatch';
+  ER_JOIN_KEY_NOT_FOUND =
+    'Ключ соединения "{0}" не найден!!Join key "{0}" not found';  
+  ER_JOIN_KIND_NOT_IMPLEMENTED =
+    'Тип соединения не реализован!!Join kind not implemented';
+  ER_JOIN_KEYS_LENGTH_MISMATCH =
+    'leftKeys и rightKeys должны иметь одинаковую длину!!leftKeys and rightKeys must have the same length';
+  ER_JOIN_KEYS_EMPTY =
+    'Список ключей соединения не должен быть пустым!!Join keys must not be empty';
+  ER_ADD_COLUMN_ROW_MISMATCH =
+    'Несоответствие числа строк при добавлении столбца!!Row count mismatch when adding column';  
+  ER_COLUMN_VALID_LENGTH_MISMATCH =
+    'Длины data и valid не совпадают при добавлении столбца!!Data and valid length mismatch when adding column';
+  ER_GROUPS_ONLY_SINGLE_KEY =
+    'Groups поддерживается только для группировки по одному столбцу!!' +
+    'Groups is supported only for grouping by a single column';
+  ER_COLUMN_INDEX_OUT_OF_RANGE =
+    'Индекс столбца {0} вне диапазона [0..{1})!!Column index {0} out of range [0..{1})';
+  ER_NO_VALID_VALUES_COLUMN =
+    'Нет допустимых значений в столбце {0}!!No valid values in column {0}';
+  ER_SORTBY_LENGTH_MISMATCH =
+    'SortBy: длины colIndices и descending не совпадают!!SortBy: colIndices and descending length mismatch';
+  ER_UNKNOWN_COLUMN_TYPE =
+    'Неизвестный тип столбца!!Unknown column type';
+  ER_COLUMN_ALREADY_EXISTS =
+    'Столбец "{0}" уже существует!!Column "{0}" already exists';
+  ER_SCHEMA_INCONSISTENT =
+    'Несогласованная схема: столбец "{0}" имеет RowCount={1}, ожидалось {2}!!' +
+    'Schema inconsistent: column "{0}" has RowCount={1}, expected {2}';
+  ER_SCHEMA_COLUMNCOUNT_MISMATCH =
+    'Несогласованная схема: ColumnCount={0}, columns.Count={1}!!' +
+    'Schema inconsistent: ColumnCount={0}, columns.Count={1}';
+  ER_SCHEMA_COLUMN_MISSING =
+    'Несогласованная схема: столбец "{0}" отсутствует в схеме!!' +
+    'Schema inconsistent: column "{0}" missing in schema';
+  ER_SCHEMA_COLUMN_INDEX_INCONSISTENT =
+    'Несогласованная схема: GetColumnIndex("{0}")={1}, ожидалось {2}!!' +
+    'Schema inconsistent: GetColumnIndex("{0}")={1}, expected {2}';
+  ER_COLUMN_NOT_NUMERIC =
+    'Столбец не является числовым!!Column is not numeric';
+  ER_GROUPBY_UNSUPPORTED_KEY_TYPE =
+    'Неподдерживаемый тип ключа GroupBy: {0}!!Unsupported GroupBy key type: {0}';
+  ER_JOIN_DATETIME_NOT_SUPPORTED =
+    'Join по ключам DateTime пока не поддерживается!!Join on DateTime keys is not supported yet';
+  ER_ZERO_VARIANCE =
+    'Нулевая дисперсия при вычислении корреляции!!Zero variance in correlation';
+  ER_NO_VALID_PAIRS =
+    'Нет допустимых пар для вычисления корреляции!!No valid pairs for correlation';
+  ER_NO_NUMERIC_COLUMNS =
+    'Нет числовых столбцов для матрицы корреляции!!No numeric columns for correlation matrix';
+  ER_ZERO_STD_STANDARDIZE =
+    'Нулевое стандартное отклонение при вызове Standardize!!Zero standard deviation in Standardize';
+  ER_ODS_FILENAME_EMPTY =
+    'Имя ODS-файла пусто!!ODS filename is empty';
+  ER_ODS_CONTENT_XML_NOT_FOUND =
+    'В ODS-файле не найден content.xml!!content.xml not found in ODS file';
+  ER_ODS_NO_SHEETS =
+    'ODS-файл не содержит листов!!ODS file contains no sheets';
+  ER_ODS_SHEET_NOT_FOUND =
+    'Лист "{0}" не найден в ODS-файле!!Sheet "{0}" not found in ODS file';
+
+  ER_INVALID_VALUE_IN_COLUMN =
+    'Недопустимое значение в столбце "{0}"!!' +
+    'Invalid value in column "{0}"';
+  ER_ZERO_STD_COLUMN =
+    'Нулевое стандартное отклонение в столбце "{0}" при StandardizeAll!!' +
+    'Zero standard deviation in column "{0}" in StandardizeAll';
+  ER_ZERO_RANGE =
+    'Нулевой диапазон при нормализации!!Zero range in normalization';
+  ER_ZERO_RANGE_COLUMN =
+    'Нулевой диапазон в столбце "{0}"!!Zero range in column "{0}"';
+  ER_QUANTILE_P_INVALID =
+    'Параметр p должен быть в диапазоне [0,1]!!Quantile p must be in [0,1]';
+  ER_NO_VALID_VALUES_QUANTILE =
+    'Нет допустимых значений для вычисления квантиля!!No valid values for quantile';
+  ER_CSV_COLUMN_COUNT_MISMATCH =
+    'Ошибка формата CSV: ожидалось {0} столбцов, получено {1}!!' +
+    'CSV format error: expected {0} columns, got {1}';
+  ER_EMPTY_CSV =
+    'CSV-файл пуст!!Empty CSV';
+  ER_CONCAT_EMPTY =
+    'DataFrame.Concat требует хотя бы один DataFrame!!DataFrame.Concat requires at least one DataFrame';
+  ER_CONCAT_DF_NULL =
+    'DataFrame.Concat не принимает nil-таблицы!!DataFrame.Concat does not accept nil dataframes';
+  ER_CONCAT_SCHEMA_MISMATCH =
+    'DataFrame.Concat требует одинаковую схему: имена, порядок, типы и categorical-флаги столбцов должны совпадать!!' +
+    'DataFrame.Concat requires identical schema: column names, order, types, and categorical flags must match';
+  ER_CSV_UNCLOSED_QUOTE =
+    'Ошибка формата CSV: незакрытая кавычка!!CSV format error: unclosed quote';
+  ER_CSV_INVALID_BOOL =
+    'Некорректное логическое значение "{0}" в столбце "{1}"!!' +
+    'Invalid bool "{0}" in column "{1}"';
+  ER_CSV_MULTILINE_FIELD_NOT_SUPPORTED =
+    'CSV writer не поддерживает переводы строк внутри ячейки!!' +
+    'CSV writer does not support line breaks inside a field';
+  ER_TEST_RATIO_INVALID =
+    'Некорректное значение testRatio = {0}. Ожидается число в диапазоне (0, 1).' +
+    'Invalid testRatio = {0}. Expected value in range (0, 1).';
+  ER_STRATIFIED_TARGET_HAS_MISSING =
+    'StratifiedTrainTestSplit не поддерживает пропуски в целевом столбце "{0}"!!' +
+    'StratifiedTrainTestSplit does not support missing values in target column "{0}"';
+  ER_STRATIFIED_SINGLETON_CLASS =
+    'StratifiedTrainTestSplit не может разделить класс "{0}" из одной строки!!' +
+    'StratifiedTrainTestSplit cannot split singleton class "{0}"';
+  ER_CAST_COLUMN_NOT_FLOAT =
+    'Столбец {0} не является вещественным!!Column {0} is not Float';
+  ER_CAST_NON_INTEGER_VALUE =
+    'Столбец {0} содержит нецелое значение {1} в строке {2}!!Column {0} contains non-integer value {1} at row {2}';
+  ER_FEATURES_EMPTY = 
+    'Список признаков пуст!!Feature list is empty';
+  ER_DATEPARTS_EMPTY =
+    'Список частей даты пуст!!Date parts list is empty';
+  ER_AGGREGATIONS_EMPTY = 
+    'Список агрегатов пуст!!Aggregation list is empty';
+  ER_COLUMN_OUT_OF_RANGE = 
+    'Индекс столбца вне диапазона!!Column index is out of range';
+  ER_AGG_COLUMN_DUPLICATE = 
+    'Дублирующееся имя агрегированной колонки!!Duplicate aggregated column name';
+  ER_ROW_INDEX_OUT_OF_RANGE = 
+    'Индекс строки вне диапазона!!Row index is out of range';
+  ER_VALUE_IS_NA =
+    'Значение в столбце "{0}" равно NA!!Value in column "{0}" is NA';
+  ER_UNSUPPORTED_COLUMN_TYPE = 
+    'Неподдерживаемый тип столбца!!Unsupported column type';
+  ER_JOIN_FLOAT_KEY_NOT_SUPPORTED =
+    'Соединение по вещественным ключам не поддерживается из-за ошибок точности!!Join on float keys is not supported due to precision issues';
+  ER_COLUMN_NOT_DATETIME =
+    'Столбец "{0}" не является DateTime!!Column "{0}" is not DateTime';
+  ER_CLIP_LOWER_GREATER_UPPER =
+    'Нижняя граница Clip больше верхней!!Clip lower bound is greater than upper bound';
+  ER_CLIP_INT_BOUNDS_NON_INTEGER =
+    'Для целочисленного столбца границы Clip должны быть целыми!!Clip bounds for Int column must be integers';
+  ER_VALUECOUNTS_COUNTCOL_EMPTY =
+    'Имя столбца счётчиков пусто!!ValueCounts count column name is empty';
+  DF_COL_COLUMN =
+    'Столбец!!Column';
+  DF_COL_MEAN =
+    'Среднее!!Mean';
+  DF_COL_MEDIAN =
+    'Медиана!!Median';
+  DF_COL_MISSINGCOUNT =
+    'Пропусков!!MissingCount';
+  DF_COL_MIN =
+    'Мин!!Min';
+  DF_COL_MAX =
+    'Макс!!Max';
+  DF_SUFFIX_COUNT =
+    'count!!count';
+  DF_SUFFIX_SUM =
+    'сумма!!sum';
+  DF_SUFFIX_MEAN =
+    'среднее!!mean';
+  DF_SUFFIX_STD =
+    'std!!std';
+  DF_SUFFIX_MIN =
+    'мин!!min';
+  DF_SUFFIX_MAX =
+    'макс!!max';
+
+function FormatDateTimeForPrint(dt: System.DateTime; fmt: string): string; forward;
+function CollectSelectorValues(df: DataFrame; selector: DataFrameCursor -> DataValue): List<real>; forward;
+function IsIntegralReal(x: real): boolean; forward;
+function BuildRowSignature(df: DataFrame; rowIndex: integer): string; forward;
+function GetCellTextForPrint(df: DataFrame; cursor: DataFrameCursor; rowIndex, colIndex, decimals: integer; dateTimeFormat: string): string; forward;
+function UiLabel(s: string): string; forward;
+function AggregationSuffix(kind: AggregationKind): string; forward;
+function LoadFromRows(
+  rows: array of StringArray;
+  hasHeader: boolean;
+  missingValues: array of string;
+  trimWhitespace: boolean;
+  strict: boolean;
+  schema: Dictionary<string, ColumnType>;
+  sampleSize: integer;
+  ignoreColumns: array of string;
+  inferTypes: boolean;
+  forceStringColumns: array of string;
+  categoricalColumns: array of string;
+  inferCategorical: boolean;
+  maxCategoricalCardinality: integer;
+  maxCategoricalRatio: real;
+  idThreshold: real;
+  minFrequency: integer
+): DataFrame; forward;
+  
+type
+  GroupKey = class(IComparable<GroupKey>)
+  private
+    fValues: array of object;
+  public
+    constructor Create(values: array of object);
+    function Equals(obj: object): boolean; override;
+    function GetHashCode: integer; override;
+  
+    property Values: array of object read fValues;
+    
+    function CompareTo(other: GroupKey): integer;
+  end;
+  
+  /// Класс для группировки данных
+  GroupByContext = class(IGroupByContext)
+  private
+    source: DataFrame;
+    singleKey: boolean;
+    keyColumn: integer;
+    groups1: Dictionary<object, List<integer>>;
+    keyColumns: array of integer;
+    groupsN: Dictionary<GroupKey, List<integer>>;
+    function BuildGroupData(indices: List<integer>): DataFrame;
+    function MakeKeyValue(ci: integer; key: object): DataValue;
+    
+  public
+    /// Создает контекст группировки для указанных столбцов
+    constructor Create(df: DataFrame; keyCols: array of integer);
+    /// Возвращает последовательность групп.
+    /// Поддерживается только для группировки по одному столбцу.
+    function Groups: sequence of DataFrameGroup;
+    /// Возвращает DataFrame с количеством строк в каждой группе
+    function Count: DataFrame;
+    /// Возвращает DataFrame со средними значениями указанного столбца по группам
+    function Mean(colName: string): DataFrame;
+    /// Возвращает сумму значений указанного столбца по группам
+    function Sum(colName: string): DataFrame;
+    /// Возвращает минимальные значения указанного столбца по группам
+    function Min(colName: string): DataFrame;
+    /// Возвращает максимальные значения указанного столбца по группам
+    function Max(colName: string): DataFrame;
+    /// Возвращает стандартное отклонение указанного столбца по группам
+    function Std(colName: string): DataFrame;
+    /// Возвращает средние значения указанных столбцов по группам
+    function Mean(colNames: array of string): DataFrame;
+    /// Возвращает суммы указанных столбцов по группам
+    function Sum(colNames: array of string): DataFrame;
+    /// Возвращает минимумы указанных столбцов по группам
+    function Min(colNames: array of string): DataFrame;
+    /// Возвращает максимумы указанных столбцов по группам
+    function Max(colNames: array of string): DataFrame;
+    /// Возвращает стандартные отклонения указанных столбцов по группам
+    function Std(colNames: array of string): DataFrame;
+    /// Возвращает DataFrame, содержащий строки групп, для которых предикат возвращает true
+    function Filter(pred: Func<GroupView, boolean>): DataFrame;    
+
+    function Aggregate(colName: string; kinds: array of AggregationKind): DataFrame;
+    
+    function Aggregate(colNames: array of string; kinds: array of AggregationKind): DataFrame;
+    
+    function Aggregate(map: Dictionary<string, array of AggregationKind>): DataFrame;
+
+    /// Возвращает DataFrame с полной статистикой указанного столбца по группам
+    function Describe(colName: string): DataFrame;
+    /// Возвращает DataFrame с полной статистикой всех числовых столбцов по группам
+    function DescribeAll: DataFrame;
+  end;
+  
+//-----------------------------
+//        Внешние хелперы
+//-----------------------------
+
+procedure BuildMergedIntKeyColumnFromFullJoin(
+  res: DataFrame;
+  name: string;
+  leftCol: IntColumn;
+  rightCol: IntColumn;
+  leftIdx, rightIdx: array of integer
+);
+begin
+  var n := leftIdx.Length;
+  var data := new integer[n];
+  var valid := new boolean[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    var li := leftIdx[i];
+    var ri := rightIdx[i];
+
+    if li >= 0 then
+    begin
+      data[i] := leftCol.Data[li];
+      valid[i] := leftCol.IsValid[li];
+    end
+    else if ri >= 0 then
+    begin
+      data[i] := rightCol.Data[ri];
+      valid[i] := rightCol.IsValid[ri];
+    end
+    else
+    begin
+      data[i] := 0;
+      valid[i] := False;
+    end;
+  end;
+
+  res.AddIntColumn(name, data, valid);
+end;
+
+procedure BuildMergedStrKeyColumnFromFullJoin(
+  res: DataFrame;
+  name: string;
+  leftCol: StrColumn;
+  rightCol: StrColumn;
+  leftIdx, rightIdx: array of integer
+);
+begin
+  var n := leftIdx.Length;
+  var data := new string[n];
+  var valid := new boolean[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    var li := leftIdx[i];
+    var ri := rightIdx[i];
+
+    if li >= 0 then
+    begin
+      data[i] := leftCol.Data[li];
+      valid[i] := leftCol.IsValid[li];
+    end
+    else if ri >= 0 then
+    begin
+      data[i] := rightCol.Data[ri];
+      valid[i] := rightCol.IsValid[ri];
+    end
+    else
+    begin
+      data[i] := '';
+      valid[i] := False;
+    end;
+  end;
+
+  res.AddStrColumn(name, data, valid);
+end;
+
+procedure BuildMergedBoolKeyColumnFromFullJoin(
+  res: DataFrame;
+  name: string;
+  leftCol: BoolColumn;
+  rightCol: BoolColumn;
+  leftIdx, rightIdx: array of integer
+);
+begin
+  var n := leftIdx.Length;
+  var data := new boolean[n];
+  var valid := new boolean[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    var li := leftIdx[i];
+    var ri := rightIdx[i];
+
+    if li >= 0 then
+    begin
+      data[i] := leftCol.Data[li];
+      valid[i] := leftCol.IsValid[li];
+    end
+    else if ri >= 0 then
+    begin
+      data[i] := rightCol.Data[ri];
+      valid[i] := rightCol.IsValid[ri];
+    end
+    else
+    begin
+      data[i] := false;
+      valid[i] := false;
+    end;
+  end;
+
+  res.AddBoolColumn(name, data, valid);
+end;
+
+procedure BuildMergedFloatKeyColumnFromJoin(
+  res: DataFrame;
+  name: string;
+  leftCol: FloatColumn;
+  rightCol: FloatColumn;
+  leftIdx, rightIdx: array of integer
+);
+begin
+  var n := leftIdx.Length;
+  var data := new real[n];
+  var valid := new boolean[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    var li := leftIdx[i];
+    var ri := rightIdx[i];
+
+    if li >= 0 then
+    begin
+      data[i] := leftCol.Data[li];
+      valid[i] := leftCol.IsValid[li];
+    end
+    else if ri >= 0 then
+    begin
+      data[i] := rightCol.Data[ri];
+      valid[i] := rightCol.IsValid[ri];
+    end
+    else
+    begin
+      data[i] := 0.0;
+      valid[i] := False;
+    end;
+  end;
+
+  res.AddFloatColumn(name, data, valid);
+end;
+
+procedure BuildMergedDateTimeKeyColumnFromJoin(
+  res: DataFrame;
+  name: string;
+  leftCol: DateTimeColumn;
+  rightCol: DateTimeColumn;
+  leftIdx, rightIdx: array of integer
+);
+begin
+  var n := leftIdx.Length;
+  var data := new System.DateTime[n];
+  var valid := new boolean[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    var li := leftIdx[i];
+    var ri := rightIdx[i];
+
+    if li >= 0 then
+    begin
+      data[i] := leftCol.Data[li];
+      valid[i] := leftCol.IsValid[li];
+    end
+    else if ri >= 0 then
+    begin
+      data[i] := rightCol.Data[ri];
+      valid[i] := rightCol.IsValid[ri];
+    end
+    else
+    begin
+      data[i] := default(System.DateTime);
+      valid[i] := False;
+    end;
+  end;
+
+  res.AddDateTimeColumn(name, data, valid);
+end;
+
+procedure BuildMergedKeyColumnFromJoin(
+  res: DataFrame;
+  name: string;
+  leftCol, rightCol: Column;
+  leftIdx, rightIdx: array of integer
+);
+begin
+  case leftCol.Info.ColType of
+    ctInt:
+      BuildMergedIntKeyColumnFromFullJoin(
+        res, name, IntColumn(leftCol), IntColumn(rightCol), leftIdx, rightIdx
+      );
+    ctFloat:
+      BuildMergedFloatKeyColumnFromJoin(
+        res, name, FloatColumn(leftCol), FloatColumn(rightCol), leftIdx, rightIdx
+      );
+    ctStr:
+      BuildMergedStrKeyColumnFromFullJoin(
+        res, name, StrColumn(leftCol), StrColumn(rightCol), leftIdx, rightIdx
+      );
+    ctBool:
+      BuildMergedBoolKeyColumnFromFullJoin(
+        res, name, BoolColumn(leftCol), BoolColumn(rightCol), leftIdx, rightIdx
+      );
+    ctDateTime:
+      BuildMergedDateTimeKeyColumnFromJoin(
+        res, name, DateTimeColumn(leftCol), DateTimeColumn(rightCol), leftIdx, rightIdx
+      );
+    else
+      Error(ER_UNSUPPORTED_COLUMN_TYPE, leftCol.Info.ColType);
+  end;
+end;
+  
+procedure BuildIntColumnFromJoin(
+  res: DataFrame;
+  name: string;
+  src: IntColumn;
+  idx: array of integer
+);
+begin
+  var n := idx.Length;
+  var data := new integer[n];
+  var valid := new boolean[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    var j := idx[i];
+
+    if j < 0 then
+    begin
+      data[i] := 0;
+      valid[i] := False;
+    end
+    else
+    begin
+      data[i] := src.Data[j];
+      valid[i] := src.IsValid[j];
+    end;
+  end;
+
+  res.AddIntColumn(name, data, valid);
+end;
+
+procedure BuildFloatColumnFromJoin(
+  res: DataFrame;
+  name: string;
+  src: FloatColumn;
+  idx: array of integer
+);
+begin
+  var n := idx.Length;
+  var data := new real[n];
+  var valid := new boolean[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    var j := idx[i];
+
+    if j < 0 then
+    begin
+      data[i] := 0.0;
+      valid[i] := False;
+    end
+    else
+    begin
+      data[i] := src.Data[j];
+      valid[i] := src.IsValid[j];
+    end;
+  end;
+
+  res.AddFloatColumn(name, data, valid);
+end;
+
+procedure BuildStrColumnFromJoin(
+  res: DataFrame;
+  name: string;
+  src: StrColumn;
+  idx: array of integer
+);
+begin
+  var n := idx.Length;
+  var data := new string[n];
+  var valid := new boolean[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    var j := idx[i];
+
+    if j < 0 then
+    begin
+      data[i] := '';
+      valid[i] := False;
+    end
+    else
+    begin
+      data[i] := src.Data[j];
+      valid[i] := src.IsValid[j];
+    end;
+  end;
+
+  res.AddStrColumn(name, data, valid);
+end;
+
+procedure BuildBoolColumnFromJoin(
+  res: DataFrame;
+  name: string;
+  src: BoolColumn;
+  idx: array of integer
+);
+begin
+  var n := idx.Length;
+  var data := new boolean[n];
+  var valid := new boolean[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    var j := idx[i];
+
+    if j < 0 then
+    begin
+      data[i] := False;
+      valid[i] := False;
+    end
+    else
+    begin
+      data[i] := src.Data[j];
+      valid[i] := src.IsValid[j];
+    end;
+  end;
+
+  res.AddBoolColumn(name, data, valid);
+end;
+
+procedure BuildDateTimeColumnFromJoin(
+  res: DataFrame;
+  name: string;
+  src: DateTimeColumn;
+  idx: array of integer
+);
+begin
+  var n := idx.Length;
+  var data := new System.DateTime[n];
+  var valid := new boolean[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    var j := idx[i];
+
+    if j < 0 then
+    begin
+      data[i] := default(System.DateTime);
+      valid[i] := False;
+    end
+    else
+    begin
+      data[i] := src.Data[j];
+      valid[i] := src.IsValid[j];
+    end;
+  end;
+
+  res.AddDateTimeColumn(name, data, valid);
+end;
+
+procedure BuildColumnFromJoin(res: DataFrame; name: string; col: Column; idx: array of integer);
+begin
+  case col.Info.ColType of
+    ctInt:
+      BuildIntColumnFromJoin(res, name, IntColumn(col), idx);
+    ctFloat:
+      BuildFloatColumnFromJoin(res, name, FloatColumn(col), idx);
+    ctStr:
+      BuildStrColumnFromJoin(res, name, StrColumn(col), idx);
+    ctBool:
+      BuildBoolColumnFromJoin(res, name, BoolColumn(col), idx);
+    ctDateTime:
+      BuildDateTimeColumnFromJoin(res, name, DateTimeColumn(col), idx);
+    else
+      Error(ER_UNSUPPORTED_COLUMN_TYPE, col.Info.ColType);
+  end;
+end;
+
+function BuildLeftJoinResult(
+  Self, other: DataFrame;
+  leftIdx, rightIdx: List<integer>;
+  leftKey, rightKey: integer
+): DataFrame;
+begin
+  var leftArr  := leftIdx.ToArray;
+  var rightArr := rightIdx.ToArray;
+
+  var res := new DataFrame;
+
+  // --- left columns
+  for var ci := 0 to Self.ColumnCount - 1 do
+    if ci = leftKey then
+      BuildMergedKeyColumnFromJoin(
+        res,
+        Self.columns[ci].Info.Name,
+        Self.columns[ci],
+        other.columns[rightKey],
+        leftArr,
+        rightArr
+      )
+    else
+      BuildColumnFromJoin(res, Self.columns[ci].Info.Name, Self.columns[ci], leftArr);
+
+  // --- right columns (учитывают -1)
+  for var ci := 0 to other.ColumnCount - 1 do
+    if ci <> rightKey then
+      BuildColumnFromJoin(res, MergedRightColumnName(Self.fSchema, other.fSchema, ci), other.columns[ci], rightArr);
+
+  var schema := DataFrameSchema.Merge(
+    Self.fSchema,
+    other.fSchema,
+    [leftKey],
+    [rightKey],
+    'right_'
+  );
+
+  res.SetSchema(schema);
+
+  Result := res;
+end;
+
+//-----------------------------
+//          DataFrame
+//-----------------------------
+
+constructor DataFrame.Create;
+begin
+  columns := [];
+  fschema := new DataFrameSchema([], []);
+  fRowCount := 0;
+end;
+
+constructor DataFrame.Create(cols: List<Column>; schema: DataFrameSchema; rowCount: integer);
+begin
+  if cols = nil then
+    ArgumentNullError(ER_COLS_NULL);
+  if schema = nil then
+    ArgumentNullError(ER_SCHEMA_NULL);
+  if cols.Count <> schema.ColumnCount then
+    ArgumentError(ER_COLS_SCHEMA_MISMATCH);
+
+  self.columns := cols;
+  self.fSchema := new DataFrameSchema(
+    schema.ColumnNames,
+    schema.Types,
+    schema.CategoricalFlags
+  );
+  
+  if cols.Count > 0 then
+    fRowCount := cols[0].RowCount
+  else if rowCount >= 0 then
+    fRowCount := rowCount
+  else
+    fRowCount := 0;
+  
+  ValidateColumnsAgainstSchema;
+end;
+
+function DataFrame.BuildJoinKey(cur: DataFrameCursor; layout: JoinKeyLayout; var hasNA: boolean): JoinKey;
+begin
+  hasNA := false;
+
+  var ic := 0; var sc := 0; var bc := 0;
+
+  // считаем размеры
+  for var i := 0 to layout.ColTypes.Length - 1 do
+    case layout.ColTypes[i] of
+      ctInt: inc(ic);
+      ctStr: inc(sc);
+      ctBool: inc(bc);
+    end;
+
+  Result.Ints := new integer[ic];
+  Result.Strs := new string[sc];
+  Result.Bools := new boolean[bc];
+
+  ic := 0; sc := 0; bc := 0;
+
+  for var i := 0 to layout.ColIndices.Length - 1 do
+  begin
+    var col := layout.ColIndices[i];
+    if not cur.IsValid(col) then
+    begin
+      hasNA := true;
+      exit;
+    end;
+
+    case layout.ColTypes[i] of
+      ctInt:
+        begin
+          Result.Ints[ic] := cur.Int(col);
+          inc(ic);
+        end;
+      ctFloat:
+        Error(ER_JOIN_FLOAT_KEY_NOT_SUPPORTED);
+      ctStr:
+        begin
+          Result.Strs[sc] := cur.Str(col);
+          inc(sc);
+        end;
+      ctBool:
+        begin
+          Result.Bools[bc] := cur.Bool(col);
+          inc(bc);
+        end;
+      else
+        Error(ER_UNSUPPORTED_COLUMN_TYPE, layout.ColTypes[i]);  
+    end;
+  end;
+end;
+
+function DataFrame.BuildHashIndex(layout: JoinKeyLayout): Dictionary<JoinKey, List<integer>>;
+begin
+  Result := new Dictionary<JoinKey, List<integer>>();
+
+  var cur := GetCursor;
+  while cur.MoveNext do
+  begin
+    var hasNA := false;
+    var key := BuildJoinKey(cur, layout, hasNA);
+    if hasNA then continue;
+
+    if not Result.ContainsKey(key) then
+      Result[key] := new List<integer>;
+
+    Result[key].Add(cur.Position);
+  end;
+end;
+
+function DataFrame.LeftJoinSingleKey(other: DataFrame; key: string): DataFrame;
+begin
+  var leftKey := fSchema.IndexOf(key);
+  var rightKey := other.fSchema.IndexOf(key);
+
+  var lt := fSchema.ColumnTypeAt(leftKey);
+  var rt := other.fSchema.ColumnTypeAt(rightKey);
+
+  if lt <> rt then
+    Error(ER_JOIN_KEY_TYPE_MISMATCH);
+
+  if lt = ctFloat then
+    Error(ER_JOIN_FLOAT_KEY_NOT_SUPPORTED);
+  if lt = ctDateTime then
+    Error(ER_JOIN_DATETIME_NOT_SUPPORTED);
+
+  case lt of
+    ctInt:   Result := LeftJoinSingleKeyInt(other, leftKey, rightKey);
+    ctStr:   Result := LeftJoinSingleKeyStr(other, leftKey, rightKey);
+    ctBool:  Result := LeftJoinSingleKeyBool(other, leftKey, rightKey);
+    else
+      Error(ER_UNSUPPORTED_COLUMN_TYPE, lt);
+  end;
+end;
+
+function DataFrame.LeftJoinSingleKeyInt(other: DataFrame; leftKey, rightKey: integer): DataFrame;
+begin
+  var index := new Dictionary<integer, List<integer>>;
+
+  var rcur := other.GetCursor;
+  while rcur.MoveNext do
+    if rcur.IsValid(rightKey) then
+    begin
+      var k := rcur.Int(rightKey);
+
+      var lst: List<integer>;
+      if not index.TryGetValue(k, lst) then
+      begin
+        lst := new List<integer>;
+        index[k] := lst;
+      end;
+
+      lst.Add(rcur.Position);
+    end;
+
+  var leftIdx  := new List<integer>;
+  var rightIdx := new List<integer>;
+
+  var lcur := GetCursor;
+  while lcur.MoveNext do
+  begin
+    var lpos := lcur.Position;
+
+    if not lcur.IsValid(leftKey) then
+    begin
+      leftIdx.Add(lpos);
+      rightIdx.Add(-1);
+      continue;
+    end;
+
+    var k := lcur.Int(leftKey);
+
+    var rows: List<integer>;
+    if index.TryGetValue(k, rows) then
+      foreach var r in rows do
+      begin
+        leftIdx.Add(lpos);
+        rightIdx.Add(r);
+      end
+    else
+    begin
+      leftIdx.Add(lpos);
+      rightIdx.Add(-1);
+    end;
+  end;
+
+  Result := BuildLeftJoinResult(Self, other, leftIdx, rightIdx, leftKey, rightKey);
+end;
+
+function DataFrame.LeftJoinSingleKeyStr(other: DataFrame; leftKey, rightKey: integer): DataFrame;
+begin
+  var index := new Dictionary<string, List<integer>>;
+
+  var rcur := other.GetCursor;
+  while rcur.MoveNext do
+    if rcur.IsValid(rightKey) then
+    begin
+      var k := rcur.Str(rightKey);
+
+      var lst: List<integer>;
+      if not index.TryGetValue(k, lst) then
+      begin
+        lst := new List<integer>;
+        index[k] := lst;
+      end;
+
+      lst.Add(rcur.Position);
+    end;
+
+  var leftIdx  := new List<integer>;
+  var rightIdx := new List<integer>;
+
+  var lcur := GetCursor;
+  while lcur.MoveNext do
+  begin
+    var lpos := lcur.Position;
+
+    if not lcur.IsValid(leftKey) then
+    begin
+      leftIdx.Add(lpos);
+      rightIdx.Add(-1);
+      continue;
+    end;
+
+    var k := lcur.Str(leftKey);
+
+    var rows: List<integer>;
+    if index.TryGetValue(k, rows) then
+      foreach var r in rows do
+      begin
+        leftIdx.Add(lpos);
+        rightIdx.Add(r);
+      end
+    else
+    begin
+      leftIdx.Add(lpos);
+      rightIdx.Add(-1);
+    end;
+  end;
+
+  Result := BuildLeftJoinResult(Self, other, leftIdx, rightIdx, leftKey, rightKey);
+end;
+
+function DataFrame.LeftJoinSingleKeyBool(other: DataFrame; leftKey, rightKey: integer): DataFrame;
+begin
+  var index := new Dictionary<boolean, List<integer>>;
+
+  var rcur := other.GetCursor;
+  while rcur.MoveNext do
+    if rcur.IsValid(rightKey) then
+    begin
+      var k := rcur.Bool(rightKey);
+
+      var lst: List<integer>;
+      if not index.TryGetValue(k, lst) then
+      begin
+        lst := new List<integer>;
+        index[k] := lst;
+      end;
+
+      lst.Add(rcur.Position);
+    end;
+
+  var leftIdx  := new List<integer>;
+  var rightIdx := new List<integer>;
+
+  var lcur := GetCursor;
+  while lcur.MoveNext do
+  begin
+    var lpos := lcur.Position;
+
+    if not lcur.IsValid(leftKey) then
+    begin
+      leftIdx.Add(lpos);
+      rightIdx.Add(-1);
+      continue;
+    end;
+
+    var k := lcur.Bool(leftKey);
+
+    var rows: List<integer>;
+    if index.TryGetValue(k, rows) then
+      foreach var r in rows do
+      begin
+        leftIdx.Add(lpos);
+        rightIdx.Add(r);
+      end
+    else
+    begin
+      leftIdx.Add(lpos);
+      rightIdx.Add(-1);
+    end;
+  end;
+
+  Result := BuildLeftJoinResult(Self, other, leftIdx, rightIdx, leftKey, rightKey);
+end;
+
+function DataFrame.LeftJoinMultiKey(other: DataFrame; keys: array of string): DataFrame;
+begin
+  // 1. индексы ключей — через Schema
+  var n := keys.Length;
+  var leftKeyIdx := new integer[n];
+  var rightKeyIdx := new integer[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    leftKeyIdx[i] := fSchema.IndexOf(keys[i]);
+    rightKeyIdx[i] := other.fSchema.IndexOf(keys[i]);
+  end;
+
+  // 2. проверка типов ключей — через Schema
+  for var i := 0 to n - 1 do
+    if fSchema.ColumnTypeAt(leftKeyIdx[i]) <> other.fSchema.ColumnTypeAt(rightKeyIdx[i]) then
+      Error(ER_JOIN_KEY_TYPE_MISMATCH);
+
+  // 3. layout'ы (как раньше)
+  var leftLayout := BuildJoinKeyLayout(leftKeyIdx);
+  var rightLayout := other.BuildJoinKeyLayout(rightKeyIdx);
+
+  // 4. hash index по правой таблице
+  var hash := other.BuildHashIndex(rightLayout);
+
+  // 5. создаём результат 
+  var schema := DataFrameSchema.Merge(
+    fSchema,
+    other.fSchema,
+    leftKeyIdx,
+    rightKeyIdx,
+    'right_'
+  );
+  //=== 
+
+  // 6. probe
+  var leftIdx  := new List<integer>;
+  var rightIdx := new List<integer>;
+  
+  var lcur := GetCursor;
+  
+  while lcur.MoveNext do
+  begin
+    var lpos := lcur.Position;
+  
+    var hasNA := false;
+    var key := BuildJoinKey(lcur, leftLayout, hasNA);
+  
+    var rows: List<integer>;
+    if (not hasNA) and hash.TryGetValue(key, rows) then
+      foreach var rpos in rows do
+      begin
+        leftIdx.Add(lpos);
+        rightIdx.Add(rpos);
+      end
+    else
+    begin
+      leftIdx.Add(lpos);
+      rightIdx.Add(-1);
+    end;
+  end;
+
+  var leftArr  := leftIdx.ToArray;
+  var rightArr := rightIdx.ToArray;
+  
+  var res := new DataFrame;
+  
+  // --- left columns
+  for var ci := 0 to ColumnCount - 1 do
+    BuildColumnFromJoin(res, columns[ci].Info.Name, columns[ci], leftArr);
+  
+  // --- right columns (exclude keys)
+  for var ci := 0 to other.ColumnCount - 1 do
+    if not rightKeyIdx.Contains(ci) then
+      BuildColumnFromJoin(res, MergedRightColumnName(fSchema, other.fSchema, ci), other.columns[ci], rightArr);
+  
+  // --- schema
+  res.SetSchema(schema);
+  
+  Result := res;
+end;
+
+function DataFrame.ReorderBySchema(schema: DataFrameSchema): DataFrame;
+begin
+  var cols := new Column[schema.ColumnCount];
+
+  for var i := 0 to schema.ColumnCount - 1 do
+    cols[i] := columns[fSchema.IndexOf(schema.ColumnNames[i])];
+
+  Result := new DataFrame(cols.ToList, schema, Self.RowCount);
+end;
+
+function DataFrame.RightJoinViaSchema(other: DataFrame; keys: array of string): DataFrame;
+begin
+  var n := keys.Length;
+  var leftKeyIdx := new integer[n];
+  var rightKeyIdx := new integer[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    leftKeyIdx[i] := fSchema.IndexOf(keys[i]);
+    rightKeyIdx[i] := other.fSchema.IndexOf(keys[i]);
+  end;
+
+  for var i := 0 to n - 1 do
+    if fSchema.ColumnTypeAt(leftKeyIdx[i]) <> other.fSchema.ColumnTypeAt(rightKeyIdx[i]) then
+      Error(ER_JOIN_KEY_TYPE_MISMATCH);
+
+  var leftLayout := BuildJoinKeyLayout(leftKeyIdx);
+  var rightLayout := other.BuildJoinKeyLayout(rightKeyIdx);
+  var hash := BuildHashIndex(leftLayout);
+
+  var leftIdx := new List<integer>;
+  var rightIdx := new List<integer>;
+
+  var rcur := other.GetCursor;
+  while rcur.MoveNext do
+  begin
+    var rpos := rcur.Position;
+
+    var hasNA := false;
+    var key := other.BuildJoinKey(rcur, rightLayout, hasNA);
+
+    var rows: List<integer>;
+    if (not hasNA) and hash.TryGetValue(key, rows) then
+      foreach var lpos in rows do
+      begin
+        leftIdx.Add(lpos);
+        rightIdx.Add(rpos);
+      end
+    else
+    begin
+      leftIdx.Add(-1);
+      rightIdx.Add(rpos);
+    end;
+  end;
+
+  var leftArr := leftIdx.ToArray;
+  var rightArr := rightIdx.ToArray;
+
+  var res := new DataFrame;
+
+  for var ci := 0 to ColumnCount - 1 do
+  begin
+    var keyPos := leftKeyIdx.IndexOf(ci);
+    if keyPos >= 0 then
+      BuildMergedKeyColumnFromJoin(
+        res,
+        columns[ci].Info.Name,
+        columns[ci],
+        other.columns[rightKeyIdx[keyPos]],
+        leftArr,
+        rightArr
+      )
+    else
+      BuildColumnFromJoin(res, columns[ci].Info.Name, columns[ci], leftArr);
+  end;
+
+  for var ci := 0 to other.ColumnCount - 1 do
+    if not rightKeyIdx.Contains(ci) then
+      BuildColumnFromJoin(res, MergedRightColumnName(fSchema, other.fSchema, ci), other.columns[ci], rightArr);
+
+  res.SetSchema(DataFrameSchema.Merge(fSchema, other.fSchema, leftKeyIdx, rightKeyIdx, 'right_'));
+  Result := res;
+end;
+
+function DataFrame.FullJoinSingleKey(other: DataFrame; key: string): DataFrame;
+begin
+  // --- 1. индексы ключей
+  var li := fSchema.IndexOf(key);
+  var ri := other.fSchema.IndexOf(key);
+  
+  if (li < 0) or (ri < 0) then
+    Error(ER_JOIN_KEY_NOT_FOUND, key);
+
+  if fSchema.ColumnTypeAt(li) <> other.fSchema.ColumnTypeAt(ri) then
+    Error(ER_JOIN_KEY_TYPE_MISMATCH);
+  
+  var leftKeyIdx  := [li];
+  var rightKeyIdx := [ri];
+
+  // --- 2. layout
+  var leftLayout  := BuildJoinKeyLayout(leftKeyIdx);
+  var rightLayout := other.BuildJoinKeyLayout(rightKeyIdx);
+
+  // --- 3. hash index (right)
+  var hash := other.BuildHashIndex(rightLayout);
+
+  // --- 4. схема
+  var schema := DataFrameSchema.Merge(
+    fSchema,
+    other.fSchema,
+    leftKeyIdx,
+    rightKeyIdx,
+    'right_'
+  );
+
+  // --- 5. индексы результата
+  var leftIdx  := new List<integer>;
+  var rightIdx := new List<integer>;
+
+  var rightUsed := new boolean[other.RowCount];
+
+  var leftCur := GetCursor;
+
+  // --- 6. проход по left
+  while leftCur.MoveNext do
+  begin
+    var lpos := leftCur.Position;
+
+    var hasNA := false;
+    var lk := BuildJoinKey(leftCur, leftLayout, hasNA);
+
+    if hasNA then
+    begin
+      leftIdx.Add(lpos);
+      rightIdx.Add(-1);
+      continue;
+    end;
+
+    var rows: List<integer>;
+    if hash.TryGetValue(lk, rows) then
+      foreach var r in rows do
+      begin
+        leftIdx.Add(lpos);
+        rightIdx.Add(r);
+        rightUsed[r] := true;
+      end
+    else
+    begin
+      leftIdx.Add(lpos);
+      rightIdx.Add(-1);
+    end;
+  end;
+
+  // --- 7. строки только справа
+  for var r := 0 to other.RowCount - 1 do
+    if not rightUsed[r] then
+    begin
+      leftIdx.Add(-1);
+      rightIdx.Add(r);
+    end;
+
+  var leftArr  := leftIdx.ToArray;
+  var rightArr := rightIdx.ToArray;
+
+  var res := new DataFrame;
+
+  // --- 8. left колонки
+  for var ci := 0 to ColumnCount - 1 do
+  begin
+    var col := columns[ci];
+    var name := col.Info.Name;
+  
+    if ci = li then
+      case col.Info.ColType of
+        ctInt:
+          BuildMergedIntKeyColumnFromFullJoin(
+            res,
+            name,
+            IntColumn(col),
+            IntColumn(other.columns[ri]),
+            leftArr,
+            rightArr
+          );
+  
+        ctFloat:
+          Error(ER_JOIN_FLOAT_KEY_NOT_SUPPORTED);
+  
+        ctStr:
+          BuildMergedStrKeyColumnFromFullJoin(
+            res,
+            name,
+            StrColumn(col),
+            StrColumn(other.columns[ri]),
+            leftArr,
+            rightArr
+          );
+  
+        ctBool:
+          BuildMergedBoolKeyColumnFromFullJoin(
+            res,
+            name,
+            BoolColumn(col),
+            BoolColumn(other.columns[ri]),
+            leftArr,
+            rightArr
+          );
+  
+        else
+          Error(ER_UNSUPPORTED_COLUMN_TYPE, col.Info.ColType);
+      end
+    else
+      BuildColumnFromJoin(res, name, col, leftArr);
+  end;
+
+  // --- 9. right колонки (без ключа)
+  for var ci := 0 to other.ColumnCount - 1 do
+    if ci <> ri then
+      BuildColumnFromJoin(res, MergedRightColumnName(fSchema, other.fSchema, ci), other.columns[ci], rightArr);
+
+  // --- 10. схема
+  res.SetSchema(schema);
+
+  Result := res;
+end;
+
+function DataFrame.FullJoinMultiKey(other: DataFrame; keys: array of string): DataFrame;
+begin
+  // --- 1. индексы ключей
+  var leftKeyIdx  := new integer[keys.Length];
+  var rightKeyIdx := new integer[keys.Length];
+  
+  for var i := 0 to keys.Length - 1 do
+  begin
+    leftKeyIdx[i]  := fSchema.IndexOf(keys[i]);
+    rightKeyIdx[i] := other.fSchema.IndexOf(keys[i]);
+  end;
+
+  for var i := 0 to keys.Length - 1 do
+    if fSchema.ColumnTypeAt(leftKeyIdx[i]) <> other.fSchema.ColumnTypeAt(rightKeyIdx[i]) then
+      Error(ER_JOIN_KEY_TYPE_MISMATCH);
+
+  // --- 2. layout
+  var leftLayout  := BuildJoinKeyLayout(leftKeyIdx);
+  var rightLayout := other.BuildJoinKeyLayout(rightKeyIdx);
+
+  // --- 3. hash index (right)
+  var hash := other.BuildHashIndex(rightLayout);
+
+  // --- 4. схема
+  var schema := DataFrameSchema.Merge(
+    fSchema,
+    other.fSchema,
+    leftKeyIdx,
+    rightKeyIdx,
+    'right_'
+  );
+
+  // --- 5. индексы результата
+  var leftIdx  := new List<integer>;
+  var rightIdx := new List<integer>;
+  var rightUsed := new boolean[other.RowCount];
+
+  var leftCur := GetCursor;
+
+  // --- 6. проход по left
+  while leftCur.MoveNext do
+  begin
+    var lpos := leftCur.Position;
+
+    var hasNA := false;
+    var lk := BuildJoinKey(leftCur, leftLayout, hasNA);
+
+    if hasNA then
+    begin
+      leftIdx.Add(lpos);
+      rightIdx.Add(-1);
+      continue;
+    end;
+
+    var rows: List<integer>;
+    if hash.TryGetValue(lk, rows) then
+      foreach var r in rows do
+      begin
+        leftIdx.Add(lpos);
+        rightIdx.Add(r);
+        rightUsed[r] := true;
+      end
+    else
+    begin
+      leftIdx.Add(lpos);
+      rightIdx.Add(-1);
+    end;
+  end;
+
+  // --- 7. строки только справа
+  for var r := 0 to other.RowCount - 1 do
+    if not rightUsed[r] then
+    begin
+      leftIdx.Add(-1);
+      rightIdx.Add(r);
+    end;
+
+  var leftArr  := leftIdx.ToArray;
+  var rightArr := rightIdx.ToArray;
+
+  var res := new DataFrame;
+
+  // --- 8. left колонки
+  for var ci := 0 to ColumnCount - 1 do
+  begin
+    var col := columns[ci];
+    var name := col.Info.Name;
+  
+    var keyPos := leftKeyIdx.IndexOf(ci);
+  
+    if keyPos >= 0 then
+    begin
+      var ri := rightKeyIdx[keyPos];
+  
+      case col.Info.ColType of
+        ctInt:
+          BuildMergedIntKeyColumnFromFullJoin(
+            res, name,
+            IntColumn(col),
+            IntColumn(other.columns[ri]),
+            leftArr, rightArr
+          );
+        
+        ctStr:
+          BuildMergedStrKeyColumnFromFullJoin(
+            res, name,
+            StrColumn(col),
+            StrColumn(other.columns[ri]),
+            leftArr, rightArr
+          );
+  
+        ctBool:
+          BuildMergedBoolKeyColumnFromFullJoin(
+            res, name,
+            BoolColumn(col),
+            BoolColumn(other.columns[ri]),
+            leftArr, rightArr
+          );
+  
+        else
+          Error(ER_UNSUPPORTED_COLUMN_TYPE, col.Info.ColType);
+      end;
+    end
+    else
+      BuildColumnFromJoin(res, name, col, leftArr);
+  end;
+
+  // --- 9. right колонки (без ключей)
+  for var ci := 0 to other.ColumnCount - 1 do
+    if not rightKeyIdx.Contains(ci) then
+      BuildColumnFromJoin(res, MergedRightColumnName(fSchema, other.fSchema, ci), other.columns[ci], rightArr);
+
+  // --- 10. схема
+  res.SetSchema(schema);
+
+  Result := res;
+end;
+
+function DataFrame.JoinInnerSingleKey(other: DataFrame; key: string): DataFrame;
+begin
+  var leftKey := fSchema.IndexOf(key);
+  var rightKey := other.fSchema.IndexOf(key);
+
+  var lt := fSchema.ColumnTypeAt(leftKey);
+  var rt := other.fSchema.ColumnTypeAt(rightKey);
+
+  if lt <> rt then
+    Error(ER_JOIN_KEY_TYPE_MISMATCH);
+
+  if lt = ctFloat then
+    Error(ER_JOIN_FLOAT_KEY_NOT_SUPPORTED);
+  if lt = ctDateTime then
+    Error(ER_JOIN_DATETIME_NOT_SUPPORTED);
+
+  case lt of
+    ctInt:   Result := JoinInnerSingleKeyInt(other, leftKey, rightKey);
+    ctStr:   Result := JoinInnerSingleKeyStr(other, leftKey, rightKey);
+    ctBool:  Result := JoinInnerSingleKeyBool(other, leftKey, rightKey);
+    else
+      Error(ER_UNSUPPORTED_COLUMN_TYPE, lt);
+  end;
+end;
+
+// Helper для следующих 4 функций
+function BuildJoinResult(
+  Self, other: DataFrame;
+  leftIdx, rightIdx: List<integer>;
+  leftKey, rightKey: integer
+): DataFrame;
+begin
+  var leftArr  := leftIdx.ToArray;
+  var rightArr := rightIdx.ToArray;
+
+  var res := new DataFrame;
+
+  // --- left columns
+  for var ci := 0 to Self.ColumnCount - 1 do
+    BuildColumnFromJoin(res, Self.columns[ci].Info.Name, Self.columns[ci], leftArr);
+
+  // --- right columns (exclude key)
+  for var ci := 0 to other.ColumnCount - 1 do
+    if ci <> rightKey then
+      BuildColumnFromJoin(res, MergedRightColumnName(Self.fSchema, other.fSchema, ci), other.columns[ci], rightArr);
+
+  var schema := DataFrameSchema.Merge(
+    Self.fSchema,
+    other.fSchema,
+    [leftKey],
+    [rightKey],
+    'right_'
+  );
+
+  res.SetSchema(schema);
+
+  Result := res;
+end;
+
+function DataFrame.JoinInnerSingleKeyInt(other: DataFrame; leftKey, rightKey: integer): DataFrame;
+begin
+  var index := new Dictionary<integer, List<integer>>;
+
+  var rcur := other.GetCursor;
+  while rcur.MoveNext do
+    if rcur.IsValid(rightKey) then
+    begin
+      var k := rcur.Int(rightKey);
+
+      var lst: List<integer>;
+      if not index.TryGetValue(k, lst) then
+      begin
+        lst := new List<integer>;
+        index[k] := lst;
+      end;
+
+      lst.Add(rcur.Position);
+    end;
+
+  var leftIdx  := new List<integer>;
+  var rightIdx := new List<integer>;
+
+  var lcur := GetCursor;
+  while lcur.MoveNext do
+    if lcur.IsValid(leftKey) then
+    begin
+      var k := lcur.Int(leftKey);
+
+      var rows: List<integer>;
+      if index.TryGetValue(k, rows) then
+        foreach var r in rows do
+        begin
+          leftIdx.Add(lcur.Position);
+          rightIdx.Add(r);
+        end;
+    end;
+
+  Result := BuildJoinResult(Self, other, leftIdx, rightIdx, leftKey, rightKey);
+end;
+
+function DataFrame.JoinInnerSingleKeyStr(other: DataFrame; leftKey, rightKey: integer): DataFrame;
+begin
+  var index := new Dictionary<string, List<integer>>;
+
+  var rcur := other.GetCursor;
+  while rcur.MoveNext do
+    if rcur.IsValid(rightKey) then
+    begin
+      var k := rcur.Str(rightKey);
+
+      var lst: List<integer>;
+      if not index.TryGetValue(k, lst) then
+      begin
+        lst := new List<integer>;
+        index[k] := lst;
+      end;
+
+      lst.Add(rcur.Position);
+    end;
+
+  var leftIdx  := new List<integer>;
+  var rightIdx := new List<integer>;
+
+  var lcur := GetCursor;
+  while lcur.MoveNext do
+    if lcur.IsValid(leftKey) then
+    begin
+      var k := lcur.Str(leftKey);
+
+      var rows: List<integer>;
+      if index.TryGetValue(k, rows) then
+        foreach var r in rows do
+        begin
+          leftIdx.Add(lcur.Position);
+          rightIdx.Add(r);
+        end;
+    end;
+
+  Result := BuildJoinResult(Self, other, leftIdx, rightIdx, leftKey, rightKey);
+end;
+
+function DataFrame.JoinInnerSingleKeyBool(other: DataFrame; leftKey, rightKey: integer): DataFrame;
+begin
+  var index := new Dictionary<boolean, List<integer>>;
+
+  var rcur := other.GetCursor;
+  while rcur.MoveNext do
+    if rcur.IsValid(rightKey) then
+    begin
+      var k := rcur.Bool(rightKey);
+
+      var lst: List<integer>;
+      if not index.TryGetValue(k, lst) then
+      begin
+        lst := new List<integer>;
+        index[k] := lst;
+      end;
+
+      lst.Add(rcur.Position);
+    end;
+
+  var leftIdx  := new List<integer>;
+  var rightIdx := new List<integer>;
+
+  var lcur := GetCursor;
+  while lcur.MoveNext do
+    if lcur.IsValid(leftKey) then
+    begin
+      var k := lcur.Bool(leftKey);
+
+      var rows: List<integer>;
+      if index.TryGetValue(k, rows) then
+        foreach var r in rows do
+        begin
+          leftIdx.Add(lcur.Position);
+          rightIdx.Add(r);
+        end;
+    end;
+
+  Result := BuildJoinResult(Self, other, leftIdx, rightIdx, leftKey, rightKey);
+end;
+
+function DataFrame.JoinInnerMultiKey(other: DataFrame; keys: array of string): DataFrame;
+begin
+  // --- 1. индексы ключей
+  var n := keys.Length;
+  var leftKeyIdx := new integer[n];
+  var rightKeyIdx := new integer[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    leftKeyIdx[i] := fSchema.IndexOf(keys[i]);
+    rightKeyIdx[i] := other.fSchema.IndexOf(keys[i]);
+  end;
+
+  // --- 2. проверка типов
+  for var i := 0 to n - 1 do
+    if fSchema.ColumnTypeAt(leftKeyIdx[i]) <> other.fSchema.ColumnTypeAt(rightKeyIdx[i]) then
+      Error(ER_JOIN_KEY_TYPE_MISMATCH);
+
+  // --- 3. layout
+  var leftLayout  := BuildJoinKeyLayout(leftKeyIdx);
+  var rightLayout := other.BuildJoinKeyLayout(rightKeyIdx);
+
+  // --- 4. hash index (right)
+  var hash := other.BuildHashIndex(rightLayout);
+
+  // --- 5. сбор индексов (только совпадения)
+  var leftIdx  := new List<integer>;
+  var rightIdx := new List<integer>;
+
+  var lcur := GetCursor;
+
+  while lcur.MoveNext do
+  begin
+    var hasNA := false;
+    var key := BuildJoinKey(lcur, leftLayout, hasNA);
+
+    if hasNA then
+      continue;
+
+    var lpos := lcur.Position;
+
+    var rows: List<integer>;
+    if hash.TryGetValue(key, rows) then
+      foreach var rpos in rows do
+      begin
+        leftIdx.Add(lpos);
+        rightIdx.Add(rpos);
+      end;
+  end;
+
+  var leftArr  := leftIdx.ToArray;
+  var rightArr := rightIdx.ToArray;
+
+  var res := new DataFrame;
+
+  // --- left columns
+  for var ci := 0 to ColumnCount - 1 do
+    BuildColumnFromJoin(res, columns[ci].Info.Name, columns[ci], leftArr);
+
+  // --- right columns (exclude keys)
+  for var ci := 0 to other.ColumnCount - 1 do
+    if not rightKeyIdx.Contains(ci) then
+      BuildColumnFromJoin(res, MergedRightColumnName(fSchema, other.fSchema, ci), other.columns[ci], rightArr);
+
+  // --- schema
+  var schema := DataFrameSchema.Merge(
+    fSchema,
+    other.fSchema,
+    leftKeyIdx,
+    rightKeyIdx,
+    'right_'
+  );
+  res.SetSchema(schema);
+
+  Result := res;
+end;
+
+function DataFrame.BuildJoinKeyLayout(keyIndices: array of integer): JoinKeyLayout;
+begin
+  Result.ColIndices := keyIndices;
+  Result.ColTypes := new ColumnType[keyIndices.Length];
+  
+  for var i := 0 to keyIndices.Length - 1 do
+  begin
+    var t := fSchema.ColumnTypeAt(keyIndices[i]);
+    
+    if t = ctFloat then
+      Error(ER_JOIN_FLOAT_KEY_NOT_SUPPORTED);
+    if t = ctDateTime then
+      Error(ER_JOIN_DATETIME_NOT_SUPPORTED);
+    
+    Result.ColTypes[i] := t;
+  end;
+end;
+
+function DataFrame.Join(other: DataFrame; keys: array of string; kind: JoinKind): DataFrame;
+begin
+  /// NOTE:
+  /// Join result structure is fully defined by DataFrameSchema.
+  /// Any post-hoc column reordering (Select, Rename) inside Join
+  /// is deprecated and must not be used.
+
+  if (keys = nil) or (keys.Length = 0) then
+    ArgumentError(ER_JOIN_KEYS_EMPTY);
+  
+  if kind = jkInner then
+    if keys.Length = 1 then
+      exit(JoinInnerSingleKey(other, keys[0]))
+    else
+      exit(JoinInnerMultiKey(other, keys));
+
+  if kind = jkLeft then
+    if keys.Length = 1 then
+      exit(LeftJoinSingleKey(other, keys[0]))
+    else
+      exit(LeftJoinMultiKey(other, keys));
+
+  if kind = jkRight then
+    exit(RightJoinViaSchema(other, keys));
+  
+  if kind = jkFull then
+    if keys.Length = 1 then
+      exit(FullJoinSingleKey(other, keys[0]))
+    else
+      exit(FullJoinMultiKey(other, keys));
+
+  Error(ER_JOIN_KIND_NOT_IMPLEMENTED);
+end;
+
+function DataFrame.Join(other: DataFrame; key: string; kind: JoinKind): DataFrame;
+begin
+  Result := Join(other, [key], kind);
+end;
+
+function DataFrame.Join(other: DataFrame; leftKeys, rightKeys: array of string; kind: JoinKind): DataFrame;
+begin
+  if (leftKeys = nil) or (leftKeys.Length = 0) then
+    ArgumentError(ER_JOIN_KEYS_EMPTY);
+
+  if leftKeys.Length <> rightKeys.Length then
+    ArgumentError(ER_JOIN_KEYS_LENGTH_MISMATCH);
+
+  if leftKeys.Length = 1 then
+  begin
+    var leftKey := fSchema.IndexOf(leftKeys[0]);
+    var rightKey := other.fSchema.IndexOf(rightKeys[0]);
+    var lt := fSchema.ColumnTypeAt(leftKey);
+    var rt := other.fSchema.ColumnTypeAt(rightKey);
+
+    if lt <> rt then
+      Error(ER_JOIN_KEY_TYPE_MISMATCH);
+
+    if lt = ctFloat then
+      Error(ER_JOIN_FLOAT_KEY_NOT_SUPPORTED);
+    if lt = ctDateTime then
+      Error(ER_JOIN_DATETIME_NOT_SUPPORTED);
+
+    if (kind = jkRight) and (leftKeys[0] <> rightKeys[0]) then
+    begin
+      var tmp := other.Rename([(rightKeys[0], leftKeys[0])]);
+      exit(Self.Join(tmp, leftKeys, jkRight));
+    end;
+
+    case kind of
+      jkInner:
+        case lt of
+          ctInt:   exit(JoinInnerSingleKeyInt(other, leftKey, rightKey));
+          ctStr:   exit(JoinInnerSingleKeyStr(other, leftKey, rightKey));
+          ctBool:  exit(JoinInnerSingleKeyBool(other, leftKey, rightKey));
+          else
+            Error(ER_UNSUPPORTED_COLUMN_TYPE, lt);
+        end;
+
+      jkLeft:
+        case lt of
+          ctInt:   exit(LeftJoinSingleKeyInt(other, leftKey, rightKey));
+          ctStr:   exit(LeftJoinSingleKeyStr(other, leftKey, rightKey));
+          ctBool:  exit(LeftJoinSingleKeyBool(other, leftKey, rightKey));
+          else
+            Error(ER_UNSUPPORTED_COLUMN_TYPE, lt);
+        end;
+
+      jkRight:
+      begin
+        case lt of
+          ctInt:
+          begin
+            var index := new Dictionary<integer, List<integer>>;
+            var lcur := GetCursor;
+            while lcur.MoveNext do
+              if lcur.IsValid(leftKey) then
+              begin
+                var k := lcur.Int(leftKey);
+                var lst: List<integer>;
+                if not index.TryGetValue(k, lst) then
+                begin
+                  lst := new List<integer>;
+                  index[k] := lst;
+                end;
+                lst.Add(lcur.Position);
+              end;
+
+            var leftIdx := new List<integer>;
+            var rightIdx := new List<integer>;
+            var rcur := other.GetCursor;
+            while rcur.MoveNext do
+            begin
+              var rpos := rcur.Position;
+              if not rcur.IsValid(rightKey) then
+              begin
+                leftIdx.Add(-1);
+                rightIdx.Add(rpos);
+                continue;
+              end;
+
+              var k := rcur.Int(rightKey);
+              var rows: List<integer>;
+              if index.TryGetValue(k, rows) then
+                foreach var lpos in rows do
+                begin
+                  leftIdx.Add(lpos);
+                  rightIdx.Add(rpos);
+                end
+              else
+              begin
+                leftIdx.Add(-1);
+                rightIdx.Add(rpos);
+              end;
+            end;
+            exit(BuildLeftJoinResult(Self, other, leftIdx, rightIdx, leftKey, rightKey));
+          end;
+
+          ctStr:
+          begin
+            var index := new Dictionary<string, List<integer>>;
+            var lcur := GetCursor;
+            while lcur.MoveNext do
+              if lcur.IsValid(leftKey) then
+              begin
+                var k := lcur.Str(leftKey);
+                var lst: List<integer>;
+                if not index.TryGetValue(k, lst) then
+                begin
+                  lst := new List<integer>;
+                  index[k] := lst;
+                end;
+                lst.Add(lcur.Position);
+              end;
+
+            var leftIdx := new List<integer>;
+            var rightIdx := new List<integer>;
+            var rcur := other.GetCursor;
+            while rcur.MoveNext do
+            begin
+              var rpos := rcur.Position;
+              if not rcur.IsValid(rightKey) then
+              begin
+                leftIdx.Add(-1);
+                rightIdx.Add(rpos);
+                continue;
+              end;
+
+              var k := rcur.Str(rightKey);
+              var rows: List<integer>;
+              if index.TryGetValue(k, rows) then
+                foreach var lpos in rows do
+                begin
+                  leftIdx.Add(lpos);
+                  rightIdx.Add(rpos);
+                end
+              else
+              begin
+                leftIdx.Add(-1);
+                rightIdx.Add(rpos);
+              end;
+            end;
+            exit(BuildLeftJoinResult(Self, other, leftIdx, rightIdx, leftKey, rightKey));
+          end;
+
+          ctBool:
+          begin
+            var index := new Dictionary<boolean, List<integer>>;
+            var lcur := GetCursor;
+            while lcur.MoveNext do
+              if lcur.IsValid(leftKey) then
+              begin
+                var k := lcur.Bool(leftKey);
+                var lst: List<integer>;
+                if not index.TryGetValue(k, lst) then
+                begin
+                  lst := new List<integer>;
+                  index[k] := lst;
+                end;
+                lst.Add(lcur.Position);
+              end;
+
+            var leftIdx := new List<integer>;
+            var rightIdx := new List<integer>;
+            var rcur := other.GetCursor;
+            while rcur.MoveNext do
+            begin
+              var rpos := rcur.Position;
+              if not rcur.IsValid(rightKey) then
+              begin
+                leftIdx.Add(-1);
+                rightIdx.Add(rpos);
+                continue;
+              end;
+
+              var k := rcur.Bool(rightKey);
+              var rows: List<integer>;
+              if index.TryGetValue(k, rows) then
+                foreach var lpos in rows do
+                begin
+                  leftIdx.Add(lpos);
+                  rightIdx.Add(rpos);
+                end
+              else
+              begin
+                leftIdx.Add(-1);
+                rightIdx.Add(rpos);
+              end;
+            end;
+            exit(BuildLeftJoinResult(Self, other, leftIdx, rightIdx, leftKey, rightKey));
+          end;
+
+          else
+            Error(ER_UNSUPPORTED_COLUMN_TYPE, lt);
+        end;
+      end;
+
+      jkFull:
+      begin
+        var tmp := other;
+        if leftKeys[0] <> rightKeys[0] then
+          tmp := other.Rename([(rightKeys[0], leftKeys[0])]);
+        exit(FullJoinSingleKey(tmp, leftKeys[0]));
+      end;
+    end;
+  end;
+
+  // временно переименовываем столбцы справа
+  var tmp := other;
+  var renames := new List<(string,string)>;
+  for var i := 0 to leftKeys.Length - 1 do
+    if leftKeys[i] <> rightKeys[i] then
+      renames.Add((rightKeys[i], leftKeys[i]));
+
+  if renames.Count > 0 then
+    tmp := other.Rename(renames.ToArray);
+
+  Result := Self.Join(tmp, leftKeys, kind);
+  
+  Result.AssertSchemaConsistent;
+end;
+
+procedure DataFrame.CommitAddedColumn(c: Column);
+begin
+  if columns.Count = 0 then
+    fRowCount := c.RowCount
+  else if c.RowCount <> fRowCount then
+    ArgumentError(ER_COLUMN_ROWCOUNT_MISMATCH, c.Info.Name, c.RowCount, fRowCount);
+
+  var n := columns.Count;
+  var names := new string[n + 1];
+  var types := new ColumnType[n + 1];
+  var cats := new boolean[n + 1];
+
+  for var i := 0 to n - 1 do
+  begin
+    var info := columns[i].Info;
+    names[i] := info.Name;
+    types[i] := info.ColType;
+    if fSchema <> nil then
+      cats[i] := fSchema.IsCategoricalAt(i)
+    else
+      cats[i] := false;
+  end;
+
+  names[n] := c.Info.Name;
+  types[n] := c.Info.ColType;
+  cats[n] := false;
+
+  var newSchema := new DataFrameSchema(names, types, cats);
+  columns.Add(c);
+  fSchema := newSchema;
+end;
+
+procedure DataFrame.ValidateColumnsAgainstSchema;
+begin
+  ValidateColumnsAgainstSchema(fSchema);
+end;
+
+procedure DataFrame.ValidateColumnsAgainstSchema(candidate: DataFrameSchema);
+begin
+  if columns = nil then
+    ArgumentNullError(ER_COLS_NULL);
+  
+  if candidate = nil then
+    ArgumentNullError(ER_SCHEMA_NULL);
+  
+  if columns.Count <> candidate.ColumnCount then
+    ArgumentError(ER_COLS_SCHEMA_MISMATCH);
+  
+  var expectedRowCount := fRowCount;
+  
+  for var i := 0 to columns.Count - 1 do
+  begin
+    var info := columns[i].Info;
+    var schemaName := candidate.NameAt(i);
+    var schemaType := candidate.ColumnTypeAt(i);
+    
+    if columns[i].RowCount <> expectedRowCount then
+      ArgumentError(ER_COLUMN_ROWCOUNT_MISMATCH, info.Name, columns[i].RowCount, expectedRowCount);
+    
+    if info.Name <> schemaName then
+      ArgumentError(ER_SCHEMA_NAME_MISMATCH, i, info.Name, schemaName);
+    
+    if info.ColType <> schemaType then
+      ArgumentError(ER_SCHEMA_TYPE_MISMATCH, info.Name, info.ColType, schemaType);
+  end;
+end;
+
+function DataFrame.GetColumnType(colIndex: integer): ColumnType;
+begin
+  Result := fSchema.ColumnTypeAt(colIndex)
+end;
+
+function DataFrame.RowCount: integer;
+begin
+  Result := fRowCount;
+end;
+
+function DataFrame.ColumnCount: integer := columns.Count;
+
+function DataFrame.ColumnIndex(name: string): integer;
+begin
+   Result := fSchema.IndexOf(name);
+end;
+
+function DataFrame.HasColumn(name: string): boolean;
+begin
+  Result := fSchema.HasColumn(name);
+end;
+
+function DataFrame.GetSchema: DataFrameSchema;
+begin
+  Result := new DataFrameSchema(
+    fSchema.ColumnNames,
+    fSchema.Types,
+    fSchema.CategoricalFlags
+  );
+end;
+
+procedure DataFrame.CheckRowIndex(rowIndex: integer);
+begin
+  if (rowIndex < 0) or (rowIndex >= RowCount) then
+    ArgumentOutOfRangeError(ER_ROW_INDEX_OUT_OF_RANGE);
+end;
+
+function DataFrame.GetCursor: DataFrameCursor :=
+  new DataFrameCursor(columns.ToArray,fSchema);
+  
+function DataFrame.GetIntColumn(name: string): array of integer;
+begin
+  var i := ColumnIndex(name);
+  var c := IntColumn(columns[i]);
+  Result := c.Data;
+end;
+
+function DataFrame.GetFloatColumn(name: string): array of real;
+begin
+  var i := ColumnIndex(name);
+  var c := FloatColumn(columns[i]);
+  Result := c.Data;
+end;
+
+function DataFrame.GetStrColumn(name: string): array of string;
+begin
+  var i := ColumnIndex(name);
+  var c := StrColumn(columns[i]);
+  Result := c.Data;
+end;
+
+function DataFrame.GetBoolColumn(name: string): array of boolean;
+begin
+  var i := ColumnIndex(name);
+  var c := BoolColumn(columns[i]);
+  Result := c.Data;
+end;
+
+function DataFrame.GetDateTimeColumn(name: string): array of System.DateTime;
+begin
+  var i := ColumnIndex(name);
+  var c := DateTimeColumn(columns[i]);
+  Result := c.Data;
+end;
+
+function DataFrame.Int(name: string): array of integer;
+begin
+  Result := GetIntColumn(name);
+end;
+
+function DataFrame.Int(rowIndex, colIndex: integer): integer;
+begin
+  CheckRowIndex(rowIndex);
+  CheckColumnIndex(colIndex);
+
+  var c := IntColumn(columns[colIndex]);
+  if not c.IsValid[rowIndex] then
+    Error(ER_VALUE_IS_NA, fSchema.NameAt(colIndex));
+  Result := c.Data[rowIndex];
+end;
+
+function DataFrame.Int(rowIndex: integer; colName: string): integer;
+begin
+  Result := Int(rowIndex, ColumnIndex(colName));
+end;
+
+function DataFrame.Float(name: string): array of real;
+begin
+  Result := GetFloatColumn(name);
+end;
+
+function DataFrame.Float(rowIndex, colIndex: integer): real;
+begin
+  CheckRowIndex(rowIndex);
+  CheckColumnIndex(colIndex);
+
+  var c := FloatColumn(columns[colIndex]);
+  if not c.IsValid[rowIndex] then
+    Error(ER_VALUE_IS_NA, fSchema.NameAt(colIndex));
+  Result := c.Data[rowIndex];
+end;
+
+function DataFrame.Float(rowIndex: integer; colName: string): real;
+begin
+  Result := Float(rowIndex, ColumnIndex(colName));
+end;
+
+function DataFrame.Str(name: string): array of string;
+begin
+  Result := GetStrColumn(name);
+end;
+
+function DataFrame.Str(rowIndex, colIndex: integer): string;
+begin
+  CheckRowIndex(rowIndex);
+  CheckColumnIndex(colIndex);
+
+  var c := StrColumn(columns[colIndex]);
+  if not c.IsValid[rowIndex] then
+    Error(ER_VALUE_IS_NA, fSchema.NameAt(colIndex));
+  Result := c.Data[rowIndex];
+end;
+
+function DataFrame.Str(rowIndex: integer; colName: string): string;
+begin
+  Result := Str(rowIndex, ColumnIndex(colName));
+end;
+
+function DataFrame.Bool(name: string): array of boolean;
+begin
+  Result := GetBoolColumn(name);
+end;
+
+function DataFrame.Bool(rowIndex, colIndex: integer): boolean;
+begin
+  CheckRowIndex(rowIndex);
+  CheckColumnIndex(colIndex);
+
+  var c := BoolColumn(columns[colIndex]);
+  if not c.IsValid[rowIndex] then
+    Error(ER_VALUE_IS_NA, fSchema.NameAt(colIndex));
+  Result := c.Data[rowIndex];
+end;
+
+function DataFrame.Bool(rowIndex: integer; colName: string): boolean;
+begin
+  Result := Bool(rowIndex, ColumnIndex(colName));
+end;
+
+function DataFrame.DateTime(name: string): array of System.DateTime;
+begin
+  Result := GetDateTimeColumn(name);
+end;
+
+function DataFrame.DateTime(rowIndex, colIndex: integer): System.DateTime;
+begin
+  CheckRowIndex(rowIndex);
+  CheckColumnIndex(colIndex);
+
+  var c := DateTimeColumn(columns[colIndex]);
+  if not c.IsValid[rowIndex] then
+    Error(ER_VALUE_IS_NA, fSchema.NameAt(colIndex));
+  Result := c.Data[rowIndex];
+end;
+
+function DataFrame.DateTime(rowIndex: integer; colName: string): System.DateTime;
+begin
+  Result := DateTime(rowIndex, ColumnIndex(colName));
+end;
+
+function DataFrame.TrainTestSplit(testRatio: real; shuffle: boolean; seed: integer): (DataFrame, DataFrame);
+begin
+  if Self = nil then
+    ArgumentNullError(ER_ARG_NULL, 'DataFrame');
+
+  if (testRatio <= 0.0) or (testRatio >= 1.0) then
+    ArgumentError(ER_TEST_RATIO_INVALID, testRatio);
+
+  var n := RowCount;
+
+  if n < 2 then
+    ArgumentError(ER_EMPTY_DATA, 'TrainTestSplit');
+
+  var idx := Arr(0..n - 1);
+
+  if shuffle then
+  begin
+    var actualSeed := if seed >= 0 then seed else System.Environment.TickCount and integer.MaxValue;
+    var rnd := new System.Random(actualSeed);
+    idx.Shuffle(rnd);
+  end;
+
+  var rawSize := Round(n * testRatio);
+  var testSize := rawSize.Clamp(1, n - 1);
+  var trainSize := n - testSize;
+
+  var testIdx := new integer[testSize];
+  var trainIdx := new integer[trainSize];
+
+  if shuffle then
+  begin
+    // как раньше
+    for var i := 0 to testSize - 1 do
+      testIdx[i] := idx[i];
+
+    for var i := 0 to trainSize - 1 do
+      trainIdx[i] := idx[testSize + i];
+  end
+  else
+  begin
+    // сохраняем порядок
+    for var i := 0 to trainSize - 1 do
+      trainIdx[i] := idx[i];
+
+    for var i := 0 to testSize - 1 do
+      testIdx[i] := idx[trainSize + i];
+  end;
+
+  var trainDf := TakeRows(trainIdx);
+  var testDf := TakeRows(testIdx);
+
+  Result := (trainDf, testDf);
+end;
+
+function DataFrame.StratifiedTrainTestSplit(
+  target: string;
+  testRatio: real;
+  seed: integer
+): (DataFrame, DataFrame);
+begin
+  if Self = nil then
+    ArgumentNullError(ER_ARG_NULL, 'DataFrame');
+
+  if target = nil then
+    ArgumentNullError(ER_ARG_NULL, 'target');
+
+  if not HasColumn(target) then
+    ArgumentError(ER_COLUMN_NOT_FOUND, target);
+
+  if (testRatio <= 0.0) or (testRatio >= 1.0) then
+    ArgumentError(ER_TEST_RATIO_INVALID, testRatio);
+
+  var n := RowCount;
+  if n < 2 then
+    ArgumentError(ER_EMPTY_DATA, 'StratifiedTrainTestSplit');
+
+  var actualSeed := if seed >= 0 then seed else System.Environment.TickCount and integer.MaxValue;
+  var rnd := new System.Random(actualSeed);
+
+  var ci := ColumnIndex(target);
+  var col := GetColumn(ci);
+
+  var groups := new Dictionary<object, List<integer>>;
+  var keyOrder := new List<object>;
+
+  case col.Info.ColType of
+
+    ctInt:
+    begin
+      var data := IntColumn(col).Data;
+      for var i := 0 to n - 1 do
+      begin
+        if not IntColumn(col).IsValid[i] then
+          Error(ER_STRATIFIED_TARGET_HAS_MISSING, target);
+
+        var key: object := data[i];
+
+        var lst: List<integer>;
+        if not groups.TryGetValue(key, lst) then
+        begin
+          lst := new List<integer>;
+          groups[key] := lst;
+          keyOrder.Add(key);
+        end;
+
+        lst.Add(i);
+      end;
+    end;
+
+    ctStr:
+    begin
+      var data := StrColumn(col).Data;
+      for var i := 0 to n - 1 do
+      begin
+        if not StrColumn(col).IsValid[i] then
+          Error(ER_STRATIFIED_TARGET_HAS_MISSING, target);
+
+        var key: object := data[i];
+
+        var lst: List<integer>;
+        if not groups.TryGetValue(key, lst) then
+        begin
+          lst := new List<integer>;
+          groups[key] := lst;
+          keyOrder.Add(key);
+        end;
+
+        lst.Add(i);
+      end;
+    end;
+
+    else
+      Error(ER_GROUPBY_UNSUPPORTED_KEY_TYPE, col.Info.ColType);
+  end;
+
+  var trainIdx := new List<integer>;
+  var testIdx := new List<integer>;
+
+  foreach var key in keyOrder do
+  begin
+    var arr := groups[key].ToArray;
+    arr.Shuffle(rnd);
+
+    var m := arr.Length;
+    if m <= 1 then
+      Error(ER_STRATIFIED_SINGLETON_CLASS, key);
+
+    var rawSize := Round(m * testRatio);
+    var testSize := rawSize.Clamp(1, m - 1);
+
+    for var i := 0 to testSize - 1 do
+      testIdx.Add(arr[i]);
+
+    for var i := testSize to m - 1 do
+      trainIdx.Add(arr[i]);
+  end;
+
+  var trainDf := TakeRows(trainIdx.ToArray);
+  var testDf := TakeRows(testIdx.ToArray);
+
+  Result := (trainDf, testDf);
+end;
+
+procedure DataFrame.AddIntColumn(name: string; data: array of integer; valid: array of boolean);
+begin
+  if HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  if (columns.Count > 0) and (Length(data) <> RowCount) then
+    DimensionError(ER_ADD_COLUMN_ROW_MISMATCH);
+
+  var c := new IntColumn(name, data, valid);
+  CommitAddedColumn(c);
+end;
+
+procedure DataFrame.AddFloatColumn(name: string; data: array of real; valid: array of boolean);
+begin
+  if HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  if (columns.Count > 0) and (Length(data) <> RowCount) then
+    DimensionError(ER_ADD_COLUMN_ROW_MISMATCH);
+
+  var c := new FloatColumn(name, data, valid);
+  CommitAddedColumn(c);
+end;
+
+procedure DataFrame.AddStrColumn(name: string; data: array of string; valid: array of boolean);
+begin
+  if HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  if (columns.Count > 0) and (Length(data) <> RowCount) then
+    DimensionError(ER_ADD_COLUMN_ROW_MISMATCH);
+
+  var c := new StrColumn(name, data, valid);
+  CommitAddedColumn(c);
+end;
+
+procedure DataFrame.AddStrColumn(name: string; data: array of char; valid: array of boolean);
+begin
+  var dataS: array of string := data.Select(c -> string(c)).ToArray;
+  AddStrColumn(name, dataS, valid);
+end;
+
+procedure DataFrame.AddBoolColumn(name: string; data: array of boolean; valid: array of boolean);
+begin
+  if HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  if (columns.Count > 0) and (Length(data) <> RowCount) then
+    DimensionError(ER_ADD_COLUMN_ROW_MISMATCH);
+
+  var c := new BoolColumn(name, data, valid);
+  CommitAddedColumn(c);
+end;
+
+procedure DataFrame.AddDateTimeColumn(name: string; data: array of System.DateTime; valid: array of boolean);
+begin
+  if HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  if (columns.Count > 0) and (Length(data) <> RowCount) then
+    DimensionError(ER_ADD_COLUMN_ROW_MISMATCH);
+
+  var c := new DateTimeColumn(name, data, valid);
+  CommitAddedColumn(c);
+end;
+
+procedure DataFrame.CheckColumnIndex(colIndex: integer);
+begin
+  if (colIndex < 0) or (colIndex >= ColumnCount) then
+    ArgumentOutOfRangeError(ER_COLUMN_INDEX_OUT_OF_RANGE, colIndex, ColumnCount);
+end;
+
+function DataFrame.Sum(colIndex: integer): real;
+begin
+  CheckColumnIndex(colIndex);
+
+  var cursor := GetCursor;
+  var s: real := 0.0;
+
+  while cursor.MoveNext do
+    if cursor.IsValid(colIndex) then
+      s += cursor.Float(colIndex);
+
+  Result := s;
+end;
+
+function DataFrame.Sum(colName: string): real
+  := Sum(ColumnIndex(colName));
+
+function DataFrame.Sum(selector: DataFrameCursor -> DataValue): real;
+begin
+  if selector = nil then
+    ArgumentNullError('selector');
+
+  var cursor := GetCursor;
+  var s: real := 0.0;
+
+  while cursor.MoveNext do
+  begin
+    var v := selector(cursor);
+    if (not System.Object.ReferenceEquals(v, nil)) and v.IsValid then
+      s += v.Float;
+  end;
+
+  Result := s;
+end;
+  
+function DataFrame.Count(colIndex: integer): integer;
+begin
+  CheckColumnIndex(colIndex);
+
+  var cursor := GetCursor;
+  var c := 0;
+
+  while cursor.MoveNext do
+    if cursor.IsValid(colIndex) then
+      c += 1;
+
+  Result := c;
+end;
+
+function DataFrame.Count(colName: string): integer
+  := Count(ColumnIndex(colName));
+
+function DataFrame.Count(selector: DataFrameCursor -> DataValue): integer;
+begin
+  if selector = nil then
+    ArgumentNullError('selector');
+
+  var cursor := GetCursor;
+  var c := 0;
+
+  while cursor.MoveNext do
+  begin
+    var v := selector(cursor);
+    if (not System.Object.ReferenceEquals(v, nil)) and v.IsValid and v.Bool then
+      c += 1;
+  end;
+
+  Result := c;
+end;
+
+function DataFrame.Mean(colIndex: integer): real;
+begin
+  CheckColumnIndex(colIndex);
+
+  var cursor := GetCursor;
+  var s := 0.0;
+  var c := 0;
+
+  while cursor.MoveNext do
+    if cursor.IsValid(colIndex) then
+    begin
+      s += cursor.Float(colIndex);
+      c += 1;
+    end;
+
+  Result := if c = 0 then 0.0 else s / c;
+end;
+
+
+function DataFrame.Mean(colName: string): real
+  := Mean(ColumnIndex(colName));
+
+function DataFrame.Mean(selector: DataFrameCursor -> DataValue): real;
+begin
+  var values := CollectSelectorValues(Self, selector);
+  if values.Count = 0 then
+    exit(0.0);
+
+  Result := values.Sum / values.Count;
+end;
+  
+function DataFrame.Median(colIndex: integer): real;
+begin
+  CheckColumnIndex(colIndex);
+  Result := Statistics.Median(Self, fSchema.NameAt(colIndex));
+end; 
+
+function DataFrame.Median(colName: string): real;
+begin
+  Result := Statistics.Median(Self, colName);
+end;
+
+function DataFrame.Median(selector: DataFrameCursor -> DataValue): real;
+begin
+  var values := CollectSelectorValues(Self, selector);
+  if values.Count = 0 then
+    Error(ER_NO_VALID_VALUES_QUANTILE);
+
+  values.Sort;
+
+  var n := values.Count;
+  if n mod 2 = 1 then
+    Result := values[n div 2]
+  else
+    Result := (values[n div 2 - 1] + values[n div 2]) / 2.0;
+end;
+
+function DataFrame.Min(colIndex: integer): real;
+begin
+  CheckColumnIndex(colIndex);
+
+  var cursor := GetCursor;
+  var has := false;
+  var m := 0.0;
+
+  while cursor.MoveNext do
+    if cursor.IsValid(colIndex) then
+    begin
+      var v := cursor.Float(colIndex);
+      if not has then
+      begin
+        m := v;
+        has := true;
+      end
+      else if v < m then
+        m := v;
+    end;
+
+  if not has then
+    Error(ER_NO_VALID_VALUES_COLUMN, colIndex);
+
+  Result := m;
+end;
+
+function DataFrame.Min(colName: string): real
+  := Min(ColumnIndex(colName));
+
+function DataFrame.Min(selector: DataFrameCursor -> DataValue): real;
+begin
+  var values := CollectSelectorValues(Self, selector);
+  if values.Count = 0 then
+    Error(ER_NO_VALID_VALUES_COLUMN, 'selector');
+
+  Result := values.Min;
+end;
+
+function DataFrame.Max(colIndex: integer): real;
+begin
+  CheckColumnIndex(colIndex);
+
+  var cursor := GetCursor;
+  var has := false;
+  var m := 0.0;
+
+  while cursor.MoveNext do
+    if cursor.IsValid(colIndex) then
+    begin
+      var v := cursor.Float(colIndex);
+      if not has then
+      begin
+        m := v;
+        has := true;
+      end
+      else if v > m then
+        m := v;
+    end;
+
+  if not has then
+    Error(ER_NO_VALID_VALUES_COLUMN, colIndex);
+
+  Result := m;
+end;
+
+function DataFrame.Max(colName: string): real
+  := Max(ColumnIndex(colName));
+
+function DataFrame.Max(selector: DataFrameCursor -> DataValue): real;
+begin
+  var values := CollectSelectorValues(Self, selector);
+  if values.Count = 0 then
+    Error(ER_NO_VALID_VALUES_COLUMN, 'selector');
+
+  Result := values.Max;
+end;
+  
+function DataFrame.MinMax(colIndex: integer): (real, real);
+begin
+  CheckColumnIndex(colIndex);
+
+  var cursor := GetCursor;
+  var has := false;
+  var mn, mx: real;
+
+  while cursor.MoveNext do
+    if cursor.IsValid(colIndex) then
+    begin
+      var v := cursor.Float(colIndex);
+      if not has then
+      begin
+        mn := v;
+        mx := v;
+        has := true;
+      end
+      else
+      begin
+        if v < mn then mn := v;
+        if v > mx then mx := v;
+      end;
+    end;
+
+  if not has then
+    Error(ER_NO_VALID_VALUES_COLUMN, colIndex);
+
+  Result := (mn, mx);
+end;
+
+function DataFrame.MinMax(colName: string): (real, real);
+begin
+  Result := MinMax(ColumnIndex(colName));
+end;
+
+function DataFrame.MinMax(selector: DataFrameCursor -> DataValue): (real, real);
+begin
+  var values := CollectSelectorValues(Self, selector);
+  if values.Count = 0 then
+    Error(ER_NO_VALID_VALUES_COLUMN, 'selector');
+
+  Result := (values.Min, values.Max);
+end;
+  
+function DataFrame.Variance(colIndex: integer): real;
+begin
+  CheckColumnIndex(colIndex);
+
+  // pass 1: mean
+  var cursor := GetCursor;
+  var sum := 0.0;
+  var cnt := 0;
+
+  while cursor.MoveNext do
+    if cursor.IsValid(colIndex) then
+    begin
+      sum += cursor.Float(colIndex);
+      cnt += 1;
+    end;
+
+  if cnt <= 1 then
+    exit(0.0);
+
+  var mean := sum / cnt;
+
+  // pass 2: squared deviations
+  cursor := GetCursor;
+  var acc := 0.0;
+
+  while cursor.MoveNext do
+    if cursor.IsValid(colIndex) then
+    begin
+      var d := cursor.Float(colIndex) - mean;
+      acc += d * d;
+    end;
+
+  Result := acc / (cnt - 1);
+end;
+
+function DataFrame.Variance(colName: string): real
+  := Variance(ColumnIndex(colName));
+
+function DataFrame.Variance(selector: DataFrameCursor -> DataValue): real;
+begin
+  var values := CollectSelectorValues(Self, selector);
+  var cnt := values.Count;
+
+  if cnt <= 1 then
+    exit(0.0);
+
+  var mean := values.Sum / cnt;
+  var acc := 0.0;
+
+  foreach var v in values do
+  begin
+    var d := v - mean;
+    acc += d * d;
+  end;
+
+  Result := acc / (cnt - 1);
+end;
+
+function DataFrame.Std(colIndex: integer): real
+  := Sqrt(Variance(colIndex));
+
+function DataFrame.Std(colName: string): real
+  := Std(ColumnIndex(colName));
+
+function DataFrame.Std(selector: DataFrameCursor -> DataValue): real;
+begin
+  Result := Sqrt(Variance(selector));
+end;
+  
+function DataFrame.MeanVariance(colIndex: integer): (real, real);
+begin
+  CheckColumnIndex(colIndex);
+
+  // pass 1: mean
+  var cursor := GetCursor;
+  var sum := 0.0;
+  var cnt := 0;
+
+  while cursor.MoveNext do
+    if cursor.IsValid(colIndex) then
+    begin
+      sum += cursor.Float(colIndex);
+      cnt += 1;
+    end;
+
+  if cnt = 0 then
+    exit((0.0, 0.0));
+
+  var mean := sum / cnt;
+
+  // pass 2: variance
+  cursor := GetCursor;
+  var acc := 0.0;
+
+  while cursor.MoveNext do
+    if cursor.IsValid(colIndex) then
+    begin
+      var d := cursor.Float(colIndex) - mean;
+      acc += d * d;
+    end;
+
+  var variance :=
+    if cnt > 1 then acc / (cnt - 1)
+    else 0.0;
+
+  Result := (mean, variance);
+end;
+
+function DataFrame.MeanVariance(colName: string): (real, real)
+  := MeanVariance(ColumnIndex(colName));
+
+function DataFrame.MeanVariance(selector: DataFrameCursor -> DataValue): (real, real);
+begin
+  var values := CollectSelectorValues(Self, selector);
+  var cnt := values.Count;
+
+  if cnt = 0 then
+    exit((0.0, 0.0));
+
+  var mean := values.Sum / cnt;
+
+  if cnt <= 1 then
+    exit((mean, 0.0));
+
+  var acc := 0.0;
+  foreach var v in values do
+  begin
+    var d := v - mean;
+    acc += d * d;
+  end;
+
+  Result := (mean, acc / (cnt - 1));
+end;
+  
+function DataFrame.Stats(colIndex: integer): DescribeStats;
+begin
+  CheckColumnIndex(colIndex);
+
+  // pass 1: count, sum, min, max
+  var cursor := GetCursor;
+  var cnt := 0;
+  var sum := 0.0;
+  var mn, mx: real;
+  var has := false;
+
+  while cursor.MoveNext do
+    if cursor.IsValid(colIndex) then
+    begin
+      var v := cursor.Float(colIndex);
+      cnt += 1;
+      sum += v;
+
+      if not has then
+      begin
+        mn := v;
+        mx := v;
+        has := true;
+      end
+      else
+      begin
+        if v < mn then mn := v;
+        if v > mx then mx := v;
+      end;
+    end;
+
+  // если нет данных — возвращаем нулевую структуру
+  if cnt = 0 then
+  begin
+    Result.Count := 0;
+    Result.Mean := 0.0;
+    Result.Std := 0.0;
+    Result.Min := 0.0;
+    Result.Max := 0.0;
+    exit;
+  end;
+
+  var mean := sum / cnt;
+
+  // pass 2: variance
+  cursor := GetCursor;
+  var acc := 0.0;
+
+  while cursor.MoveNext do
+    if cursor.IsValid(colIndex) then
+    begin
+      var d := cursor.Float(colIndex) - mean;
+      acc += d * d;
+    end;
+
+  Result.Count := cnt;
+  Result.Mean := mean;
+  
+  if cnt > 1 then
+    Result.Std := Sqrt(acc / (cnt - 1))
+  else
+    Result.Std := 0.0;
+
+  Result.Min := mn;
+  Result.Max := mx;
+end;
+
+function DataFrame.Stats(colName: string): DescribeStats;
+begin
+  Result := Stats(ColumnIndex(colName));
+end;
+
+function DataFrame.DescribeByIndices(colIndices: array of integer): Dictionary<integer, DescribeStats>;
+begin
+  var res := new Dictionary<integer, DescribeStats>;
+
+  foreach var i in colIndices do
+    res[i] := Stats(i);
+
+  Result := res;
+end;
+
+function DataFrame.DescribeAll: Dictionary<string, DescribeStats>;
+begin
+  var res := new Dictionary<string, DescribeStats>;
+
+  for var i := 0 to ColumnCount - 1 do
+    case columns[i].Info.ColType of
+      ctInt, ctFloat:
+        res[columns[i].Info.Name] := Stats(i);
+    end;
+
+  Result := res;
+end;
+
+function DataFrame.Describe: DataFrame;
+begin
+  var stats := DescribeAll;
+  var names := new List<string>;
+  var counts := new List<integer>;
+  var means := new List<real>;
+  var stds := new List<real>;
+  var mins := new List<real>;
+  var maxs := new List<real>;
+  var allInt := true;
+
+  for var i := 0 to ColumnCount - 1 do
+    case columns[i].Info.ColType of
+      ctInt, ctFloat:
+      begin
+        var name := columns[i].Info.Name;
+        var st := stats[name];
+        names.Add(name);
+        counts.Add(st.Count);
+        means.Add(st.Mean);
+        stds.Add(st.Std);
+        mins.Add(st.Min);
+        maxs.Add(st.Max);
+        if columns[i].Info.ColType <> ctInt then
+          allInt := false;
+      end;
+    end;
+
+  Result := new DataFrame;
+  Result.AddStrColumn(UiLabel(DF_COL_COLUMN), names.ToArray, nil);
+  Result.AddIntColumn('Count', counts.ToArray, nil);
+  Result.AddFloatColumn(UiLabel(DF_COL_MEAN), means.ToArray, nil);
+  Result.AddFloatColumn('Std', stds.ToArray, nil);
+  if allInt then
+  begin
+    Result.AddIntColumn(UiLabel(DF_COL_MIN), mins.Select(x -> Round(x)).ToArray, nil);
+    Result.AddIntColumn(UiLabel(DF_COL_MAX), maxs.Select(x -> Round(x)).ToArray, nil);
+  end
+  else
+  begin
+    Result.AddFloatColumn(UiLabel(DF_COL_MIN), mins.ToArray, nil);
+    Result.AddFloatColumn(UiLabel(DF_COL_MAX), maxs.ToArray, nil);
+  end;
+end;
+
+function DataFrame.Unique(colName: string): array of DataValue;
+begin
+  var ci := ColumnIndex(colName);
+  var col := GetColumn(ci);
+  var values := new List<DataValue>;
+
+  case col.Info.ColType of
+    ctInt:
+    begin
+      var c := IntColumn(col);
+      var seen := new HashSet<integer>;
+      for var i := 0 to c.Data.Length - 1 do
+        if c.IsValid[i] and seen.Add(c.Data[i]) then
+          values.Add(new DataValue(colName, c.Data[i]));
+    end;
+
+    ctFloat:
+    begin
+      var c := FloatColumn(col);
+      var seen := new HashSet<real>;
+      for var i := 0 to c.Data.Length - 1 do
+        if c.IsValid[i] and seen.Add(c.Data[i]) then
+          values.Add(new DataValue(colName, c.Data[i]));
+    end;
+
+    ctStr:
+    begin
+      var c := StrColumn(col);
+      var seen := new HashSet<string>;
+      for var i := 0 to c.Data.Length - 1 do
+        if c.IsValid[i] and seen.Add(c.Data[i]) then
+          values.Add(new DataValue(colName, c.Data[i]));
+    end;
+
+    ctBool:
+    begin
+      var c := BoolColumn(col);
+      var seen := new HashSet<boolean>;
+      for var i := 0 to c.Data.Length - 1 do
+        if c.IsValid[i] and seen.Add(c.Data[i]) then
+          values.Add(new DataValue(colName, c.Data[i]));
+    end;
+
+    ctDateTime:
+    begin
+      var c := DateTimeColumn(col);
+      var seen := new HashSet<System.DateTime>;
+      for var i := 0 to c.Data.Length - 1 do
+        if c.IsValid[i] and seen.Add(c.Data[i]) then
+          values.Add(new DataValue(colName, c.Data[i]));
+    end;
+
+  else
+    Error(ER_UNKNOWN_COLUMN_TYPE);
+  end;
+
+  Result := values.ToArray;
+end;
+
+function DataFrame.NUnique(colName: string): integer;
+begin
+  Result := Unique(colName).Length;
+end;
+
+function DataFrame.ValueCounts(colName: string): DataFrame;
+begin
+  Result := ValueCounts(colName, 'Count');
+end;
+
+function ValueCounts(Self: Column): DataFrame; extensionmethod;
+begin
+  var df := new DataFrame;
+  df.AddColumnAlias(Self);
+  Result := df.ValueCounts(Self.Info.Name);
+end;
+
+function DataFrame.ValueCounts(colName: string; countColName: string): DataFrame;
+begin
+  var ci := ColumnIndex(colName);
+  var col := GetColumn(ci);
+  var counts := new List<integer>;
+  var order := new List<integer>;
+  var res := new DataFrame;
+  if countColName = nil then
+    ArgumentNullError('countColName');
+  if countColName = '' then
+    ArgumentError(ER_VALUECOUNTS_COUNTCOL_EMPTY);
+  if countColName = colName then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, countColName);
+
+  case col.Info.ColType of
+    ctInt:
+    begin
+      var c := IntColumn(col);
+      var index := new Dictionary<integer, integer>;
+      var values := new List<integer>;
+
+      for var i := 0 to c.Data.Length - 1 do
+        if c.IsValid[i] then
+        begin
+          var pos: integer;
+          if index.TryGetValue(c.Data[i], pos) then
+            counts[pos] += 1
+          else
+          begin
+            pos := values.Count;
+            index[c.Data[i]] := pos;
+            values.Add(c.Data[i]);
+            counts.Add(1);
+          end;
+        end;
+
+      for var i := 0 to values.Count - 1 do
+        order.Add(i);
+
+      order.Sort((a, b) ->
+      begin
+        Result := counts[b].CompareTo(counts[a]);
+        if Result = 0 then
+          Result := a.CompareTo(b);
+      end);
+
+      var sortedValues := new integer[values.Count];
+      var sortedCounts := new integer[values.Count];
+      for var i := 0 to order.Count - 1 do
+      begin
+        sortedValues[i] := values[order[i]];
+        sortedCounts[i] := counts[order[i]];
+      end;
+
+      res.AddIntColumn(colName, sortedValues);
+      res.AddIntColumn(countColName, sortedCounts);
+    end;
+
+    ctFloat:
+    begin
+      var c := FloatColumn(col);
+      var index := new Dictionary<real, integer>;
+      var values := new List<real>;
+
+      for var i := 0 to c.Data.Length - 1 do
+        if c.IsValid[i] then
+        begin
+          var pos: integer;
+          if index.TryGetValue(c.Data[i], pos) then
+            counts[pos] += 1
+          else
+          begin
+            pos := values.Count;
+            index[c.Data[i]] := pos;
+            values.Add(c.Data[i]);
+            counts.Add(1);
+          end;
+        end;
+
+      for var i := 0 to values.Count - 1 do
+        order.Add(i);
+
+      order.Sort((a, b) ->
+      begin
+        Result := counts[b].CompareTo(counts[a]);
+        if Result = 0 then
+          Result := a.CompareTo(b);
+      end);
+
+      var sortedValues := new real[values.Count];
+      var sortedCounts := new integer[values.Count];
+      for var i := 0 to order.Count - 1 do
+      begin
+        sortedValues[i] := values[order[i]];
+        sortedCounts[i] := counts[order[i]];
+      end;
+
+      res.AddFloatColumn(colName, sortedValues);
+      res.AddIntColumn(countColName, sortedCounts);
+    end;
+
+    ctStr:
+    begin
+      var c := StrColumn(col);
+      var index := new Dictionary<string, integer>;
+      var values := new List<string>;
+
+      for var i := 0 to c.Data.Length - 1 do
+        if c.IsValid[i] then
+        begin
+          var pos: integer;
+          if index.TryGetValue(c.Data[i], pos) then
+            counts[pos] += 1
+          else
+          begin
+            pos := values.Count;
+            index[c.Data[i]] := pos;
+            values.Add(c.Data[i]);
+            counts.Add(1);
+          end;
+        end;
+
+      for var i := 0 to values.Count - 1 do
+        order.Add(i);
+
+      order.Sort((a, b) ->
+      begin
+        Result := counts[b].CompareTo(counts[a]);
+        if Result = 0 then
+          Result := a.CompareTo(b);
+      end);
+
+      var sortedValues := new string[values.Count];
+      var sortedCounts := new integer[values.Count];
+      for var i := 0 to order.Count - 1 do
+      begin
+        sortedValues[i] := values[order[i]];
+        sortedCounts[i] := counts[order[i]];
+      end;
+
+      res.AddStrColumn(colName, sortedValues);
+      res.AddIntColumn(countColName, sortedCounts);
+    end;
+
+    ctBool:
+    begin
+      var c := BoolColumn(col);
+      var index := new Dictionary<boolean, integer>;
+      var values := new List<boolean>;
+
+      for var i := 0 to c.Data.Length - 1 do
+        if c.IsValid[i] then
+        begin
+          var pos: integer;
+          if index.TryGetValue(c.Data[i], pos) then
+            counts[pos] += 1
+          else
+          begin
+            pos := values.Count;
+            index[c.Data[i]] := pos;
+            values.Add(c.Data[i]);
+            counts.Add(1);
+          end;
+        end;
+
+      for var i := 0 to values.Count - 1 do
+        order.Add(i);
+
+      order.Sort((a, b) ->
+      begin
+        Result := counts[b].CompareTo(counts[a]);
+        if Result = 0 then
+          Result := a.CompareTo(b);
+      end);
+
+      var sortedValues := new boolean[values.Count];
+      var sortedCounts := new integer[values.Count];
+      for var i := 0 to order.Count - 1 do
+      begin
+        sortedValues[i] := values[order[i]];
+        sortedCounts[i] := counts[order[i]];
+      end;
+
+      res.AddBoolColumn(colName, sortedValues);
+      res.AddIntColumn(countColName, sortedCounts);
+    end;
+
+    ctDateTime:
+    begin
+      var c := DateTimeColumn(col);
+      var index := new Dictionary<System.DateTime, integer>;
+      var values := new List<System.DateTime>;
+
+      for var i := 0 to c.Data.Length - 1 do
+        if c.IsValid[i] then
+        begin
+          var pos: integer;
+          if index.TryGetValue(c.Data[i], pos) then
+            counts[pos] += 1
+          else
+          begin
+            pos := values.Count;
+            index[c.Data[i]] := pos;
+            values.Add(c.Data[i]);
+            counts.Add(1);
+          end;
+        end;
+
+      for var i := 0 to values.Count - 1 do
+        order.Add(i);
+
+      order.Sort((a, b) ->
+      begin
+        Result := counts[b].CompareTo(counts[a]);
+        if Result = 0 then
+          Result := a.CompareTo(b);
+      end);
+
+      var sortedValues := new System.DateTime[values.Count];
+      var sortedCounts := new integer[values.Count];
+      for var i := 0 to order.Count - 1 do
+      begin
+        sortedValues[i] := values[order[i]];
+        sortedCounts[i] := counts[order[i]];
+      end;
+
+      res.AddDateTimeColumn(colName, sortedValues);
+      res.AddIntColumn(countColName, sortedCounts);
+    end;
+
+  else
+    Error(ER_UNKNOWN_COLUMN_TYPE);
+  end;
+
+  var cats := new boolean[2];
+  cats[0] := fSchema.IsCategoricalAt(ci);
+  cats[1] := false;
+  res.SetSchema(new DataFrameSchema([colName, countColName], [fSchema.ColumnTypeAt(ci), ctInt], cats));
+  Result := res;
+end;
+
+function DataFrame.MissingCount(colName: string): integer;
+begin
+  var col := GetColumn(colName);
+  Result := 0;
+  for var i := 0 to col.IsValid.Length - 1 do
+    if not col.IsValid[i] then
+      Result += 1;
+end;
+
+function DataFrame.MissingCounts: DataFrame;
+begin
+  var names := fSchema.ColumnNames;
+  var counts := new integer[names.Length];
+
+  for var i := 0 to names.Length - 1 do
+    counts[i] := MissingCount(names[i]);
+
+  var res := new DataFrame;
+  var colName1 := UiLabel(DF_COL_COLUMN);
+  var colName2 := UiLabel(DF_COL_MISSINGCOUNT);
+  res.AddStrColumn(colName1, names);
+  res.AddIntColumn(colName2, counts);
+  res.SetSchema(new DataFrameSchema([colName1, colName2], [ctStr, ctInt], [false, false]));
+  Result := res;
+end;
+
+function DataFrame.DropMissing: DataFrame;
+begin
+  var cols := fSchema.ColumnNames;
+  Result := DropMissing(cols);
+end;
+
+function DataFrame.DropMissing(columns: array of string): DataFrame;
+begin
+  if columns = nil then
+    ArgumentNullError('columns');
+
+  if columns.Length = 0 then
+  begin
+    if RowCount = 0 then
+      exit(TakeRows([]));
+    exit(TakeRows(Arr(0..RowCount - 1)));
+  end;
+
+  var indices := new integer[columns.Length];
+  for var i := 0 to columns.Length - 1 do
+    indices[i] := ColumnIndex(columns[i]);
+
+  var selected := new List<integer>;
+  var cur := GetCursor;
+  while cur.MoveNext do
+  begin
+    var ok := true;
+    for var j := 0 to indices.Length - 1 do
+      if not cur.IsValid(indices[j]) then
+      begin
+        ok := false;
+        break;
+      end;
+
+    if ok then
+      selected.Add(cur.Position);
+  end;
+
+  Result := TakeRows(selected.ToArray);
+end;
+
+function DataFrame.DropDuplicates: DataFrame;
+begin
+  var seen := new HashSet<string>;
+  var selected := new List<integer>;
+
+  for var i := 0 to RowCount - 1 do
+  begin
+    var key := BuildRowSignature(Self, i);
+    if seen.Add(key) then
+      selected.Add(i);
+  end;
+
+  Result := TakeRows(selected.ToArray);
+end;
+
+function DataFrame.Clip(colName: string; lower, upper: real): DataFrame;
+begin
+  if lower > upper then
+    ArgumentError(ER_CLIP_LOWER_GREATER_UPPER);
+
+  var ci := ColumnIndex(colName);
+  var t := fSchema.ColumnTypeAt(ci);
+
+  case t of
+    ctInt:
+    begin
+      if (not IsIntegralReal(lower)) or (not IsIntegralReal(upper)) then
+        ArgumentError(ER_CLIP_INT_BOUNDS_NON_INTEGER);
+
+      var lo := Round(lower);
+      var hi := Round(upper);
+      Result := MapIntColumnData(colName, v -> PABCSystem.Max(lo, PABCSystem.Min(hi, v)));
+    end;
+
+    ctFloat:
+      Result := MapFloatColumnData(colName, v -> PABCSystem.Max(lower, PABCSystem.Min(upper, v)));
+
+  else
+    Error(ER_COLUMN_NOT_NUMERIC);
+  end;
+end;
+
+function DataFrame.GroupBy(colIndex: integer): IGroupByContext;
+begin
+  CheckColumnIndex(colIndex);
+  Result := new GroupByContext(self, [colIndex]);
+end;
+
+function DataFrame.GroupBy(colName: string): IGroupByContext;
+begin
+  Result := GroupBy(ColumnIndex(colName));
+end;
+
+function DataFrame.GroupBy(colIndices: array of integer): IGroupByContext;
+begin
+  foreach var i in colIndices do
+    CheckColumnIndex(i);
+  Result := new GroupByContext(self, colIndices);
+end;
+
+function DataFrame.GroupBy(colNames: array of string): IGroupByContext;
+begin
+  Result := GroupBy(colNames.Select(n -> ColumnIndex(n)).ToArray);
+end;
+
+{procedure DataFrame.AppendRowFromCursor(src: DataFrame; cur: DataFrameCursor);
+begin
+  // 1. если DataFrame пуст — копируем структуру
+  if columns.Count = 0 then
+  begin
+    foreach var col in src.columns do
+      case col.Info.ColType of
+        ctInt:   AddIntColumn(col.Info.Name, new integer[0], nil);
+        ctFloat: AddFloatColumn(col.Info.Name, new real[0], nil);
+        ctStr:   AddStrColumn(col.Info.Name, new string[0], nil);
+        ctBool:  AddBoolColumn(col.Info.Name, new boolean[0], nil);
+      end;
+  end;
+
+  // 2. добавляем текущую строку
+  for var j := 0 to columns.Count - 1 do
+    columns[j].AppendFromCursor(cur, j);
+end;}
+
+function DataFrame.Head(n: integer): DataFrame;
+begin
+  if n <= 0 then
+    exit(TakeRows([]));
+
+  var k := PABCSystem.Min(n, RowCount);
+
+  Result := TakeRows(Arr(0..k-1));
+end;
+
+function DataFrame.Tail(n: integer): DataFrame;
+begin
+  if n <= 0 then
+    exit(TakeRows([]));
+
+  var total := RowCount;
+  var k := PABCSystem.Min(n, total);
+  var start := total - k;
+
+  Result := TakeRows(Arr(start..total-1));
+end;
+
+type
+  SortKey = record
+    Row: integer;
+    Valid: array of boolean;
+
+    IntVals: array of integer;
+    FloatVals: array of real;
+    StrVals: array of string;
+    BoolVals: array of boolean;
+    DateTimeVals: array of System.DateTime;
+  end;
+  
+function DataFrame.SortBy(colIndices: array of integer; descending: array of boolean): DataFrame;
+begin
+  if colIndices.Length <> descending.Length then
+    ArgumentError(ER_SORTBY_LENGTH_MISMATCH);
+
+  foreach var c in colIndices do
+    CheckColumnIndex(c);
+
+  // ---------- 1. строим ключи ----------
+  var keys := new List<SortKey>;
+  var cur := GetCursor;
+  
+  while cur.MoveNext do
+  begin
+    var k: SortKey;
+    k.Row := cur.Position;
+    k.Valid := new boolean[colIndices.Length];
+  
+    k.IntVals   := new integer[colIndices.Length];
+    k.FloatVals := new real[colIndices.Length];
+    k.StrVals   := new string[colIndices.Length];
+    k.BoolVals  := new boolean[colIndices.Length];
+    k.DateTimeVals := new System.DateTime[colIndices.Length];
+  
+    for var i := 0 to colIndices.Length - 1 do
+    begin
+      var c := colIndices[i];
+      k.Valid[i] := cur.IsValid(c);
+  
+      if not k.Valid[i] then continue;
+  
+      case fSchema.ColumnTypeAt(c) of
+        ctInt:   k.IntVals[i]   := cur.Int(c);
+        ctFloat: k.FloatVals[i] := cur.Float(c);
+        ctStr:   k.StrVals[i]   := cur.Str(c);
+        ctBool:  k.BoolVals[i]  := cur.Bool(c);
+        ctDateTime: k.DateTimeVals[i] := cur.DateTime(c);
+      end;
+    end;
+  
+    keys.Add(k);
+  end;
+  // ---------- 2. сортируем ключи ----------
+  keys.Sort((a, b) ->
+  begin
+    for var i := 0 to colIndices.Length - 1 do
+    begin
+      if a.Valid[i] <> b.Valid[i] then
+      begin  
+        Result := if a.Valid[i] then -1 else 1;
+        exit;
+      end;  
+  
+      if not a.Valid[i] then
+        continue;
+  
+      var cmp: integer;
+      case fSchema.ColumnTypeAt(colIndices[i]) of
+        ctInt:   cmp := a.IntVals[i].CompareTo(b.IntVals[i]);
+        ctFloat: cmp := a.FloatVals[i].CompareTo(b.FloatVals[i]);
+        ctStr:   cmp := a.StrVals[i].CompareTo(b.StrVals[i]);
+        ctBool:  cmp := a.BoolVals[i].CompareTo(b.BoolVals[i]);
+        ctDateTime: cmp := a.DateTimeVals[i].CompareTo(b.DateTimeVals[i]);
+      end;
+      
+      if cmp <> 0 then
+      begin  
+        Result := if descending[i] then -cmp else cmp;  
+        exit;
+      end;  
+    end;
+    Result := 0;
+  end);
+  
+    // ---------- 3. собираем результат ----------
+  var idx := new integer[keys.Count];
+  
+  for var i := 0 to keys.Count - 1 do
+    idx[i] := keys[i].Row;
+  
+  Result := TakeRows(idx);
+end;
+
+function DataFrame.SortBy(colIndex: integer; descending: boolean): DataFrame;
+begin
+  Result := SortBy([colIndex], [descending]);
+end;
+
+function DataFrame.SortBy(colName: string; descending: boolean): DataFrame;
+begin
+  Result := SortBy(ColumnIndex(colName), descending);
+end;
+
+function DataFrame.SortBy(colNames: array of string; descending: array of boolean): DataFrame;
+begin
+  Result := SortBy(colNames.Select(n -> ColumnIndex(n)).ToArray, descending);
+end;
+
+procedure DataFrame.SetSchema(schema: DataFrameSchema);
+begin
+  if schema = nil then
+    ArgumentNullError(ER_SCHEMA_NULL);
+
+  var candidate := new DataFrameSchema(
+    schema.ColumnNames,
+    schema.Types,
+    schema.CategoricalFlags
+  );
+  
+  ValidateColumnsAgainstSchema(candidate);
+  fSchema := candidate;
+end;
+
+function DataFrame.SetCategorical(names: array of string): DataFrame;
+begin
+  var n := fSchema.ColumnCount;
+
+  var cats := new boolean[n];
+
+  // копируем старые значения
+  for var i := 0 to n - 1 do
+    cats[i] := fSchema.IsCategoricalAt(i);
+
+  // применяем новые
+  foreach var name in names do
+    cats[fSchema.IndexOf(name)] := true;
+
+  // создаём НОВУЮ schema
+  var newSchema := new DataFrameSchema(
+    fSchema.ColumnNames,
+    fSchema.Types,
+    cats
+  );
+
+  // создаём новый DataFrame с отдельным списком колонок
+  Result := new DataFrame(columns.ToList, newSchema, Self.RowCount);
+end;
+
+function DataFrame.IsCategorical(name: string): boolean;
+begin
+  if name = nil then
+    ArgumentNullError(ER_ARG_NULL, 'name');
+
+  if not HasColumn(name) then
+    ArgumentError(ER_COLUMN_NOT_FOUND, name);
+
+  Result := Schema.IsCategorical(name);
+end;
+
+function DataFrame.Filter(pred: CursorPredicate): DataFrame;
+begin
+  var cursor := GetCursor;
+  var mask := new List<integer>;
+
+  while cursor.MoveNext do
+    if pred(cursor) then
+      mask.Add(cursor.Position);
+
+  var newCount := mask.Count;
+  var res := new DataFrame;
+
+  // --- перенос колонок ---
+  foreach var col in columns do
+  begin
+    // ---------- INT ----------
+    if col is IntColumn then
+    begin
+      var src := IntColumn(col);
+
+      var data := new integer[newCount];
+      var valid := new boolean[newCount];
+
+      for var k := 0 to newCount - 1 do
+      begin
+        var i := mask[k];
+        data[k] := src.Data[i];
+        valid[k] := src.IsValid[i];
+      end;
+
+      res.AddIntColumn(src.Info.Name, data, valid);
+    end
+
+    // ---------- FLOAT ----------
+    else if col is FloatColumn then
+    begin
+      var src := FloatColumn(col);
+
+      var data := new real[newCount];
+      var valid := new boolean[newCount];
+
+      for var k := 0 to newCount - 1 do
+      begin
+        var i := mask[k];
+        data[k] := src.Data[i];
+        valid[k] := src.IsValid[i];
+      end;
+
+      res.AddFloatColumn(src.Info.Name, data, valid);
+    end
+
+    // ---------- STRING ----------
+    else if col is StrColumn then
+    begin
+      var src := StrColumn(col);
+
+      var data := new string[newCount];
+      var valid := new boolean[newCount];
+
+      for var k := 0 to newCount - 1 do
+      begin
+        var i := mask[k];
+        data[k] := src.Data[i];
+        valid[k] := src.IsValid[i];
+      end;
+
+      res.AddStrColumn(src.Info.Name, data, valid);
+    end
+
+    // ---------- BOOL ----------
+    else if col is BoolColumn then
+    begin
+      var src := BoolColumn(col);
+
+      var data := new boolean[newCount];
+      var valid := new boolean[newCount];
+
+      for var k := 0 to newCount - 1 do
+      begin
+        var i := mask[k];
+        data[k] := src.Data[i];
+        valid[k] := src.IsValid[i];
+      end;
+
+      res.AddBoolColumn(src.Info.Name, data, valid);
+    end
+    else if col is DateTimeColumn then
+    begin
+      var src := DateTimeColumn(col);
+
+      var data := new System.DateTime[newCount];
+      var valid := new boolean[newCount];
+
+      for var k := 0 to newCount - 1 do
+      begin
+        var i := mask[k];
+        data[k] := src.Data[i];
+        valid[k] := src.IsValid[i];
+      end;
+
+      res.AddDateTimeColumn(src.Info.Name, data, valid);
+    end
+    else
+      Error(ER_UNKNOWN_COLUMN_TYPE);
+  end;
+
+  // КЛЮЧЕВОЕ: перенос schema
+  var cats := new boolean[ColumnCount];
+  for var i := 0 to ColumnCount - 1 do
+    cats[i] := fSchema.IsCategoricalAt(i);
+
+  res.SetSchema(new DataFrameSchema(
+    fSchema.ColumnNames,
+    fSchema.Types,
+    cats
+  ));
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.Select(colIndices: array of integer): DataFrame;
+begin
+  foreach var i in colIndices do
+    CheckColumnIndex(i);
+
+  var newSchema := fSchema.Select(colIndices);
+  var newColumns := new List<Column>;
+
+  foreach var i in colIndices do
+    newColumns.Add(columns[i]);
+
+  Result := new DataFrame(newColumns, newSchema, Self.RowCount);
+end;
+
+function DataFrame.Select(colNames: array of string): DataFrame;
+begin
+  var indices := new integer[colNames.Length];
+
+  for var i := 0 to colNames.Length - 1 do
+    indices[i] := fSchema.IndexOf(colNames[i]);
+
+  Result := Select(indices);
+end;
+
+
+function DataFrame.Rename(colIndex: integer; newName: string): DataFrame;
+begin
+  CheckColumnIndex(colIndex);
+
+  var oldName := fSchema.NameAt(colIndex);
+  if oldName = newName then
+    exit(Self);
+
+  Result := Rename([(oldName, newName)]);
+end;
+
+
+function DataFrame.Rename(oldName, newName: string): DataFrame;
+begin
+  Result := Rename(ColumnIndex(oldName), newName);
+end;
+
+function DataFrame.Rename(pairs: array of (string, string)): DataFrame;
+begin
+  var map := new Dictionary<string, string>;
+  foreach var p in pairs do
+    map[p[0]] := p[1];
+
+  var res := new DataFrame;
+
+  // --- копируем колонки ---
+  for var i := 0 to columns.Count - 1 do
+  begin
+    var col := columns[i];
+    var oldName := col.Info.Name;
+    var newName := if map.ContainsKey(oldName) then map[oldName] else oldName;
+
+    case fSchema.ColumnTypeAt(i) of
+      ctInt:
+      begin
+        var c := IntColumn(col);
+        res.AddIntColumn(newName, c.Data, c.IsValid);
+      end;
+
+      ctStr:
+      begin
+        var c := StrColumn(col);
+        res.AddStrColumn(newName, c.Data, c.IsValid);
+      end;
+
+      ctFloat:
+      begin
+        var c := FloatColumn(col);
+        res.AddFloatColumn(newName, c.Data, c.IsValid);
+      end;
+
+      ctBool:
+      begin
+        var c := BoolColumn(col);
+        res.AddBoolColumn(newName, c.Data, c.IsValid);
+      end;
+
+      ctDateTime:
+      begin
+        var c := DateTimeColumn(col);
+        res.AddDateTimeColumn(newName, c.Data, c.IsValid);
+      end;
+    end;
+  end;
+
+  // КЛЮЧЕВОЕ: пересобираем schema
+  var n := ColumnCount;
+  var names := new string[n];
+  var types := new ColumnType[n];
+  var cats := new boolean[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    var oldName := fSchema.NameAt(i);
+    var newName := if map.ContainsKey(oldName) then map[oldName] else oldName;
+
+    names[i] := newName;
+    types[i] := fSchema.ColumnTypeAt(i);
+    cats[i] := fSchema.IsCategoricalAt(i);
+  end;
+
+  res.SetSchema(new DataFrameSchema(names, types, cats));
+
+  Result := res;
+
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.Drop(colIndices: array of integer): DataFrame;
+begin
+  foreach var i in colIndices do
+    CheckColumnIndex(i);
+
+  var drop := new boolean[columns.Count];
+  foreach var i in colIndices do
+    drop[i] := true;
+
+  var keep := new List<integer>;
+  for var i := 0 to columns.Count - 1 do
+    if not drop[i] then
+      keep.Add(i);
+
+  Result := Select(keep.ToArray);
+end;
+
+function DataFrame.Drop(colNames: array of string): DataFrame;
+begin
+  var indices := new integer[colNames.Length];
+
+  for var i := 0 to colNames.Length - 1 do
+    indices[i] := fSchema.IndexOf(colNames[i]);
+
+  Result := Drop(indices);
+end;
+
+function DataFrame.BuildJoinSchema(right: DataFrame; leftKeys, rightKeys: array of integer;
+  rightPrefix: string): DataFrameSchema;
+begin
+  Result := DataFrameSchema.Merge(
+    fSchema,
+    right.fSchema,
+    leftKeys,
+    rightKeys,
+    rightPrefix
+  );
+end;
+
+function DataFrame.BuildJoinSchema(right: DataFrame; leftKeys, rightKeys: array of string): DataFrameSchema;
+begin
+  var leftIdx := new integer[leftKeys.Length];
+  var rightIdx := new integer[rightKeys.Length];
+
+  for var i := 0 to leftKeys.Length - 1 do
+  begin
+    leftIdx[i] := fSchema.IndexOf(leftKeys[i]);
+    rightIdx[i] := right.fSchema.IndexOf(rightKeys[i]);
+  end;
+
+  Result := BuildJoinSchema(right, leftIdx, rightIdx, 'right_');
+end;
+
+function DataFrame.CreateEmptyBySchema(schema: DataFrameSchema): DataFrame;
+begin
+  var cols := new List<Column>;
+
+  for var i := 0 to schema.ColumnCount - 1 do
+  begin
+    case schema.Types[i] of
+      ctInt:
+        cols.Add(new IntColumn(schema.ColumnNames[i]));
+      ctFloat:
+        cols.Add(new FloatColumn(schema.ColumnNames[i]));
+      ctStr:
+        cols.Add(new StrColumn(schema.ColumnNames[i]));
+      ctBool:
+        cols.Add(new BoolColumn(schema.ColumnNames[i]));
+      ctDateTime:
+        cols.Add(new DateTimeColumn(schema.ColumnNames[i]));
+    end;
+  end;
+
+  Result := new DataFrame(cols, schema);
+end;
+
+function DataFrame.GetColumn(name: string): Column;
+begin
+  var idx := ColumnIndex(name);
+  Result := columns[idx];
+end;
+
+function DataFrame.CloneWithSharedColumns: DataFrame;
+begin
+  Result := new DataFrame;
+  Result.fRowCount := Self.RowCount;
+
+  for var i := 0 to columns.Count - 1 do
+  begin
+    var col := columns[i];
+
+    case fSchema.ColumnTypeAt(i) of
+      ctInt:
+      begin
+        var c := IntColumn(col);
+        Result.AddIntColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctStr:
+      begin
+        var c := StrColumn(col);
+        Result.AddStrColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctFloat:
+      begin
+        var c := FloatColumn(col);
+        Result.AddFloatColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctBool:
+      begin
+        var c := BoolColumn(col);
+        Result.AddBoolColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctDateTime:
+      begin
+        var c := DateTimeColumn(col);
+        Result.AddDateTimeColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+    end;
+  end;
+end;
+
+function DataFrame.WithColumnInt(name: string; data: array of integer; valid: array of boolean): DataFrame;
+begin
+  if fSchema.HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  if data = nil then
+    ArgumentNullError(ER_ARG_NULL, 'data');
+
+  if Length(data) <> RowCount then
+    DimensionError(ER_ADD_COLUMN_ROW_MISMATCH);
+
+  var res := CloneWithSharedColumns;
+  res.AddIntColumn(name, data, valid);
+  res.SetSchema(ExtendSchema(name, ctInt, false));
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.WithColumnInt(name: string; f: DataFrameCursor -> integer): DataFrame;
+begin
+  if fSchema.HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  var res := CloneWithSharedColumns;
+
+  var data := new integer[RowCount];
+  var valid := new boolean[RowCount];
+
+  var cur := GetCursor;
+  var i := 0;
+
+  while cur.MoveNext do
+  begin
+    data[i] := f(cur);
+    valid[i] := True;
+    i += 1;
+  end;
+
+  res.AddIntColumn(name, data, valid);
+  res.SetSchema(ExtendSchema(name, ctInt, false));
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.WithColumnFloat(name: string; data: array of real; valid: array of boolean): DataFrame;
+begin
+  if fSchema.HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  if data = nil then
+    ArgumentNullError(ER_ARG_NULL, 'data');
+
+  if Length(data) <> RowCount then
+    DimensionError(ER_ADD_COLUMN_ROW_MISMATCH);
+
+  var res := CloneWithSharedColumns;
+  res.AddFloatColumn(name, data, valid);
+  res.SetSchema(ExtendSchema(name, ctFloat, false));
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.WithColumnFloat(name: string; f: DataFrameCursor -> real): DataFrame;
+begin
+  if fSchema.HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  var res := CloneWithSharedColumns;
+
+  var data := new real[RowCount];
+  var valid := new boolean[RowCount];
+
+  var cur := GetCursor;
+  var i := 0;
+
+  while cur.MoveNext do
+  begin
+    data[i] := f(cur);
+    valid[i] := True;
+    i += 1;
+  end;
+
+  res.AddFloatColumn(name, data, valid);
+  res.SetSchema(ExtendSchema(name, ctFloat, false));
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.WithColumnFloat(name: string; f: DataFrameCursor -> DataValue): DataFrame;
+begin
+  if fSchema.HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  if f = nil then
+    ArgumentNullError(ER_ARG_NULL, 'f');
+
+  var res := CloneWithSharedColumns;
+
+  var data := new real[RowCount];
+  var valid := new boolean[RowCount];
+
+  var cur := GetCursor;
+  var i := 0;
+
+  while cur.MoveNext do
+  begin
+    var v := f(cur);
+
+    if System.Object.ReferenceEquals(v, nil) then
+      ArgumentNullError(ER_ARG_NULL, 'f(row)');
+
+    valid[i] := v.IsValid;
+
+    if v.IsValid then
+    begin
+      if not (v.ColType in [ctInt, ctFloat]) then
+        Error(ER_COLUMN_NOT_NUMERIC);
+
+      data[i] := v.Float;
+    end;
+
+    i += 1;
+  end;
+
+  res.AddFloatColumn(name, data, valid);
+  res.SetSchema(ExtendSchema(name, ctFloat, false));
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.WithColumnStr(name: string; data: array of string; valid: array of boolean): DataFrame;
+begin
+  if fSchema.HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  if data = nil then
+    ArgumentNullError(ER_ARG_NULL, 'data');
+
+  if Length(data) <> RowCount then
+    DimensionError(ER_ADD_COLUMN_ROW_MISMATCH);
+
+  var res := CloneWithSharedColumns;
+  res.AddStrColumn(name, data, valid);
+  res.SetSchema(ExtendSchema(name, ctStr, false));
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.WithColumnStr(name: string; f: DataFrameCursor -> string): DataFrame;
+begin
+  if fSchema.HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  var res := CloneWithSharedColumns;
+
+  var data := new string[RowCount];
+  var valid := new boolean[RowCount];
+
+  var cur := GetCursor;
+  var i := 0;
+
+  while cur.MoveNext do
+  begin
+    data[i] := f(cur);
+    valid[i] := True;
+    i += 1;
+  end;
+
+  res.AddStrColumn(name, data, valid);
+  res.SetSchema(ExtendSchema(name, ctStr, false));
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.WithColumnBool(name: string; data: array of boolean; valid: array of boolean): DataFrame;
+begin
+  if fSchema.HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  if data = nil then
+    ArgumentNullError(ER_ARG_NULL, 'data');
+
+  if Length(data) <> RowCount then
+    DimensionError(ER_ADD_COLUMN_ROW_MISMATCH);
+
+  var res := CloneWithSharedColumns;
+  res.AddBoolColumn(name, data, valid);
+  res.SetSchema(ExtendSchema(name, ctBool, false));
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.WithColumnBool(name: string; f: DataFrameCursor -> boolean): DataFrame;
+begin
+  if fSchema.HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  var res := CloneWithSharedColumns;
+
+  var data := new boolean[RowCount];
+  var valid := new boolean[RowCount];
+
+  var cur := GetCursor;
+  var i := 0;
+
+  while cur.MoveNext do
+  begin
+    data[i] := f(cur);
+    valid[i] := True;
+    i += 1;
+  end;
+
+  res.AddBoolColumn(name, data, valid);
+  res.SetSchema(ExtendSchema(name, ctBool, false));
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.WithColumnDateTime(name: string; data: array of System.DateTime; valid: array of boolean): DataFrame;
+begin
+  if fSchema.HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  if data = nil then
+    ArgumentNullError(ER_ARG_NULL, 'data');
+
+  if Length(data) <> RowCount then
+    DimensionError(ER_ADD_COLUMN_ROW_MISMATCH);
+
+  var res := CloneWithSharedColumns;
+  res.AddDateTimeColumn(name, data, valid);
+  res.SetSchema(ExtendSchema(name, ctDateTime, false));
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.WithColumnDateTime(name: string; f: DataFrameCursor -> System.DateTime): DataFrame;
+begin
+  if fSchema.HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  var res := CloneWithSharedColumns;
+
+  var data := new System.DateTime[RowCount];
+  var valid := new boolean[RowCount];
+
+  var cur := GetCursor;
+  var i := 0;
+
+  while cur.MoveNext do
+  begin
+    data[i] := f(cur);
+    valid[i] := True;
+    i += 1;
+  end;
+
+  res.AddDateTimeColumn(name, data, valid);
+  res.SetSchema(ExtendSchema(name, ctDateTime, false));
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.WithDatePart(sourceColumn, newColumnName: string; part: DatePartKind): DataFrame;
+begin
+  if sourceColumn = nil then
+    ArgumentNullError(ER_ARG_NULL, 'sourceColumn');
+  if newColumnName = nil then
+    ArgumentNullError(ER_ARG_NULL, 'newColumnName');
+  if not HasColumn(sourceColumn) then
+    ArgumentError(ER_COLUMN_NOT_FOUND, sourceColumn);
+  if GetColumnType(sourceColumn) <> ColumnType.ctDateTime then
+    ArgumentError(ER_COLUMN_NOT_DATETIME, sourceColumn);
+  
+  var sourceIndex := ColumnIndex(sourceColumn);
+
+  var res := CloneWithSharedColumns;
+  var valid := new boolean[RowCount];
+  var cur := GetCursor;
+  var i := 0;
+
+  if part = dpDate then
+  begin
+    var data := new System.DateTime[RowCount];
+
+    while cur.MoveNext do
+    begin
+      if not cur.IsValid(sourceIndex) then
+      begin
+        data[i] := default(System.DateTime);
+        valid[i] := False;
+      end
+      else
+      begin
+        data[i] := cur.DateTime(sourceColumn).Date;
+        valid[i] := True;
+      end;
+      i += 1;
+    end;
+
+    res.AddDateTimeColumn(newColumnName, data, valid);
+    res.SetSchema(ExtendSchema(newColumnName, ctDateTime, false));
+  end
+  else
+  begin
+    var data := new integer[RowCount];
+
+    while cur.MoveNext do
+    begin
+      if not cur.IsValid(sourceIndex) then
+      begin
+        data[i] := 0;
+        valid[i] := False;
+      end
+      else
+      begin
+        var dt := cur.DateTime(sourceColumn);
+        case part of
+          dpYear: data[i] := dt.Year;
+          dpMonth: data[i] := dt.Month;
+          dpDay: data[i] := dt.Day;
+          dpHour: data[i] := dt.Hour;
+          dpMinute: data[i] := dt.Minute;
+          dpSecond: data[i] := dt.Second;
+          dpDayOfWeek: data[i] := integer(dt.DayOfWeek);
+          dpTimeOfDay: data[i] := integer(dt.TimeOfDay.TotalSeconds);
+          else
+            ArgumentError('Unsupported DatePartKind: ' + part.ToString);
+        end;
+        valid[i] := True;
+      end;
+      i += 1;
+    end;
+
+    res.AddIntColumn(newColumnName, data, valid);
+    res.SetSchema(ExtendSchema(newColumnName, ctInt, false));
+  end;
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.WithDateParts(sourceColumn: string; parts: array of (string, DatePartKind)): DataFrame;
+begin
+  if sourceColumn = nil then
+    ArgumentNullError(ER_ARG_NULL, 'sourceColumn');
+  if (parts = nil) or (parts.Length = 0) then
+    ArgumentError(ER_DATEPARTS_EMPTY);
+
+  Result := Self;
+  foreach var partInfo in parts do
+    Result := Result.WithDatePart(sourceColumn, partInfo[0], partInfo[1]);
+end;
+
+function DataFrame.ExtendSchema(
+  name: string;
+  colType: ColumnType;
+  isCategorical: boolean
+): DataFrameSchema;
+begin
+  var oldN := fSchema.ColumnCount;
+  var newN := oldN + 1;
+
+  var names := new string[newN];
+  var types := new ColumnType[newN];
+  var cats := new boolean[newN];
+
+  for var j := 0 to oldN - 1 do
+  begin
+    names[j] := fSchema.NameAt(j);
+    types[j] := fSchema.ColumnTypeAt(j);
+    cats[j] := fSchema.IsCategoricalAt(j);
+  end;
+
+  names[oldN] := name;
+  types[oldN] := colType;
+  cats[oldN] := isCategorical;
+
+  Result := new DataFrameSchema(names, types, cats);
+end;
+
+function DataFrame.ReplaceColumnFloat(colName: string; f: DataFrameCursor -> real): DataFrame;
+begin
+  var colIndex := ColumnIndex(colName);
+  var rowCount := RowCount;
+
+  var data := new real[rowCount];
+  var valid := new boolean[rowCount];
+
+  var cur := GetCursor;
+  var row := 0;
+
+  while cur.MoveNext do
+  begin
+    // --- NA: обрабатываем явно, без исключений
+    if not cur.IsValid(colIndex) then
+    begin
+      data[row] := 0.0;
+      valid[row] := false;
+      row += 1;
+      continue;
+    end;
+
+    // --- вычисление
+    data[row] := f(cur);
+    valid[row] := True;
+    row += 1;
+  end;
+
+  // --- сборка результата
+  var res := new DataFrame;
+
+  for var i := 0 to columns.Count - 1 do
+    if i <> colIndex then
+      res.AddColumnAlias(columns[i])
+    else
+      res.AddFloatColumn(colName, data, valid);
+    
+  // --- ИСПРАВЛЕНИЕ СХЕМЫ ---
+  var newTypes := Copy(fSchema.Types);
+  newTypes[colIndex] := ColumnType.ctFloat;
+  
+  var newSchema := new DataFrameSchema(
+    fSchema.ColumnNames,
+    newTypes,
+    fSchema.CategoricalFlags
+  );    
+
+  res.SetSchema(newSchema);
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.ReplaceColumnInt(colName: string; f: DataFrameCursor -> integer): DataFrame;
+begin
+  var colIndex := ColumnIndex(colName);
+  var rowCount := RowCount;
+
+  var data := new integer[rowCount];
+  var valid := new boolean[rowCount];
+
+  var cur := GetCursor;
+  var row := 0;
+  
+  while cur.MoveNext do
+  begin
+    // NA из исходных данных
+    if not cur.IsValid(colIndex) then
+    begin
+      data[row] := 0;
+      valid[row] := false;
+      row += 1;
+      continue;
+    end;
+  
+    // строгий расчёт
+    data[row] := f(cur);
+    valid[row] := True;
+  
+    row += 1;
+  end;
+
+  var res := new DataFrame;
+  for var i := 0 to columns.Count - 1 do
+    if i <> colIndex then
+      res.AddColumnAlias(columns[i])
+    else
+      res.AddIntColumn(colName, data, valid);
+
+  // --- ИСПРАВЛЕНИЕ СХЕМЫ ---
+  var newTypes := Copy(fSchema.Types);
+  newTypes[colIndex] := ColumnType.ctInt;
+  
+  var newSchema := new DataFrameSchema(
+    fSchema.ColumnNames,
+    newTypes,
+    fSchema.CategoricalFlags
+  );
+  
+  res.SetSchema(newSchema);
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.AddDerivedIntColumn(
+  name: string;
+  f: DataFrameCursor -> integer
+): DataFrame;
+begin
+  if Schema.HasColumn(name) then
+    ArgumentError(ER_COLUMN_ALREADY_EXISTS, name);
+
+  var rowCount := RowCount;
+  var data := new integer[rowCount];
+  var valid := new boolean[rowCount];
+
+  var cur := GetCursor;
+  var row := 0;
+  while cur.MoveNext do
+  begin
+    data[row] := f(cur);
+    valid[row] := True;
+    row += 1;
+  end;
+
+  var res := new DataFrame;
+  for var i := 0 to columns.Count - 1 do
+    res.AddColumnAlias(columns[i]);
+
+  res.AddIntColumn(name, data, valid);
+  res.SetSchema(ExtendSchema(name, ctInt, false));
+
+  Result := res;
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.MapIntColumnData(name: string; f: integer -> integer): DataFrame;
+begin
+  if not HasColumn(name) then
+    ArgumentError(ER_COLUMN_NOT_FOUND, name);
+  if GetColumnType(name) <> ctInt then
+    ArgumentError('Column "' + name + '" is not Int');
+
+  var res := new DataFrame;
+
+  for var i := 0 to columns.Count - 1 do
+  begin
+    var col := columns[i];
+
+    case col.Info.ColType of
+      ctInt:
+      begin
+        var c := IntColumn(col);
+
+        if c.Info.Name = name then
+        begin
+          var data := c.Data;
+          var newData := new integer[data.Length];
+
+          for var j := 0 to data.Length - 1 do
+            if (c.IsValid <> nil) and not c.IsValid[j] then
+              newData[j] := 0
+            else
+              newData[j] := f(data[j]);
+
+          res.AddIntColumn(name, newData, c.IsValid);
+        end
+        else
+          res.AddIntColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctFloat:
+      begin
+        var c := FloatColumn(col);
+        res.AddFloatColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctStr:
+      begin
+        var c := StrColumn(col);
+        res.AddStrColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctBool:
+      begin
+        var c := BoolColumn(col);
+        res.AddBoolColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctDateTime:
+      begin
+        var c := DateTimeColumn(col);
+        res.AddDateTimeColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+    end;
+  end;
+
+  res.SetSchema(new DataFrameSchema(
+    fSchema.ColumnNames,
+    fSchema.Types,
+    fSchema.CategoricalFlags
+  ));
+
+  Result := res;
+
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.TransformIntColumn(name: string; f: integer -> integer): DataFrame :=
+  MapIntColumnData(name, f);
+
+function DataFrame.MapFloatColumnData(name: string; f: real -> real): DataFrame;
+begin
+  if not HasColumn(name) then
+    ArgumentError(ER_COLUMN_NOT_FOUND, name);
+  if GetColumnType(name) <> ctFloat then
+    ArgumentError(ER_CAST_COLUMN_NOT_FLOAT, name);
+
+  var res := new DataFrame;
+
+  for var i := 0 to columns.Count - 1 do
+  begin
+    var col := columns[i];
+
+    case col.Info.ColType of
+      ctFloat:
+      begin
+        var c := FloatColumn(col);
+
+        if c.Info.Name = name then
+        begin
+          var data := c.Data;
+          var newData := new real[data.Length];
+
+          for var j := 0 to data.Length - 1 do
+            if (c.IsValid <> nil) and not c.IsValid[j] then
+              newData[j] := 0.0
+            else
+              newData[j] := f(data[j]);
+
+          res.AddFloatColumn(name, newData, c.IsValid);
+        end
+        else
+          res.AddFloatColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctInt:
+      begin
+        var c := IntColumn(col);
+        res.AddIntColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctStr:
+      begin
+        var c := StrColumn(col);
+        res.AddStrColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctBool:
+      begin
+        var c := BoolColumn(col);
+        res.AddBoolColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctDateTime:
+      begin
+        var c := DateTimeColumn(col);
+        res.AddDateTimeColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+    end;
+  end;
+
+  res.SetSchema(new DataFrameSchema(
+    fSchema.ColumnNames,
+    fSchema.Types,
+    fSchema.CategoricalFlags
+  ));
+
+  Result := res;
+
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.TransformFloatColumn(name: string; f: real -> real): DataFrame :=
+  MapFloatColumnData(name, f);
+
+function DataFrame.MapStrColumnData(name: string; f: string -> string): DataFrame;
+begin
+  if not HasColumn(name) then
+    ArgumentError(ER_COLUMN_NOT_FOUND, name);
+  if GetColumnType(name) <> ctStr then
+    ArgumentError('Column "' + name + '" is not String');
+
+  var res := new DataFrame;
+
+  for var i := 0 to columns.Count - 1 do
+  begin
+    var col := columns[i];
+
+    case col.Info.ColType of
+      ctInt:
+      begin
+        var c := IntColumn(col);
+        res.AddIntColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctFloat:
+      begin
+        var c := FloatColumn(col);
+        res.AddFloatColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctBool:
+      begin
+        var c := BoolColumn(col);
+        res.AddBoolColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctStr:
+      begin
+        var c := StrColumn(col);
+
+        if c.Info.Name = name then
+        begin
+          var data := c.Data;
+          var newData := new string[data.Length];
+
+          for var j := 0 to data.Length - 1 do
+            if (c.IsValid <> nil) and not c.IsValid[j] then
+              newData[j] := nil
+            else
+              newData[j] := f(data[j]);
+
+          res.AddStrColumn(name, newData, c.IsValid);
+        end
+        else
+          res.AddStrColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctDateTime:
+      begin
+        var c := DateTimeColumn(col);
+        res.AddDateTimeColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+    end;
+  end;
+
+  res.SetSchema(new DataFrameSchema(
+    fSchema.ColumnNames,
+    fSchema.Types,
+    fSchema.CategoricalFlags
+  ));
+
+  Result := res;
+
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.TransformStrColumn(name: string; f: string -> string): DataFrame :=
+  MapStrColumnData(name, f);
+
+function DataFrame.MapBoolColumnData(name: string; f: boolean -> boolean): DataFrame;
+begin
+  if not HasColumn(name) then
+    ArgumentError(ER_COLUMN_NOT_FOUND, name);
+  if GetColumnType(name) <> ctBool then
+    ArgumentError('Column "' + name + '" is not Bool');
+
+  var res := new DataFrame;
+
+  for var i := 0 to columns.Count - 1 do
+  begin
+    var col := columns[i];
+
+    case col.Info.ColType of
+      ctBool:
+      begin
+        var c := BoolColumn(col);
+
+        if c.Info.Name = name then
+        begin
+          var data := c.Data;
+          var newData := new boolean[data.Length];
+
+          for var j := 0 to data.Length - 1 do
+            if (c.IsValid <> nil) and not c.IsValid[j] then
+              newData[j] := false
+            else
+              newData[j] := f(data[j]);
+
+          res.AddBoolColumn(name, newData, c.IsValid);
+        end
+        else
+          res.AddBoolColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctInt:
+      begin
+        var c := IntColumn(col);
+        res.AddIntColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctFloat:
+      begin
+        var c := FloatColumn(col);
+        res.AddFloatColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctStr:
+      begin
+        var c := StrColumn(col);
+        res.AddStrColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+
+      ctDateTime:
+      begin
+        var c := DateTimeColumn(col);
+        res.AddDateTimeColumn(c.Info.Name, c.Data, c.IsValid);
+      end;
+    end;
+  end;
+
+  res.SetSchema(new DataFrameSchema(
+    fSchema.ColumnNames,
+    fSchema.Types,
+    fSchema.CategoricalFlags
+  ));
+
+  Result := res;
+
+  Result.AssertSchemaConsistent;
+end;
+
+function DataFrame.TransformBoolColumn(name: string; f: boolean -> boolean): DataFrame :=
+  MapBoolColumnData(name, f);
+
+function DataFrame.TakeRows(indices: array of integer): DataFrame;
+begin
+  if indices = nil then
+    ArgumentNullError(ER_ARG_NULL, 'indices');
+
+  var k := indices.Length;
+  var res := new DataFrame;
+  res.fRowCount := k;
+
+  for var j := 0 to k - 1 do
+  begin
+    var i := indices[j];
+
+    if (i < 0) or (i >= RowCount) then
+      ArgumentError(ER_ROW_INDEX_OUT_OF_RANGE, i);
+  end;
+  
+  var names := new List<string>;
+  var types := new List<ColumnType>;
+  var cats := new List<boolean>;
+
+  for var ci := 0 to ColumnCount - 1 do
+  begin
+    var col := columns[ci];
+    var name := col.Info.Name;
+    var colType := col.Info.ColType;
+
+    case colType of
+
+      ctInt:
+      begin
+        var src := IntColumn(col);
+        var data := new integer[k];
+        var validDst := new boolean[k];
+
+          for var j := 0 to k - 1 do
+          begin
+            var i := indices[j];
+
+            data[j] := src.Data[i];
+            validDst[j] := src.IsValid[i];
+          end;
+
+        res.AddIntColumn(name, data, validDst);
+      end;
+
+      ctFloat:
+      begin
+        var src := FloatColumn(col);
+        var data := new real[k];
+        var validDst := new boolean[k];
+
+          for var j := 0 to k - 1 do
+          begin
+            var i := indices[j];
+
+            data[j] := src.Data[i];
+            validDst[j] := src.IsValid[i];
+          end;
+
+        res.AddFloatColumn(name, data, validDst);
+      end;
+
+      ctStr:
+      begin
+        var src := StrColumn(col);
+        var data := new string[k];
+        var validDst := new boolean[k];
+
+          for var j := 0 to k - 1 do
+          begin
+            var i := indices[j];
+
+            data[j] := src.Data[i];
+            validDst[j] := src.IsValid[i];
+          end;
+
+        res.AddStrColumn(name, data, validDst);
+      end;
+
+      ctBool:
+      begin
+        var src := BoolColumn(col);
+        var data := new boolean[k];
+        var validDst := new boolean[k];
+
+          for var j := 0 to k - 1 do
+          begin
+            var i := indices[j];
+
+            data[j] := src.Data[i];
+            validDst[j] := src.IsValid[i];
+          end;
+
+        res.AddBoolColumn(name, data, validDst);
+      end;
+
+      ctDateTime:
+      begin
+        var src := DateTimeColumn(col);
+        var data := new System.DateTime[k];
+        var validDst := new boolean[k];
+
+          for var j := 0 to k - 1 do
+          begin
+            var i := indices[j];
+
+            data[j] := src.Data[i];
+            validDst[j] := src.IsValid[i];
+          end;
+
+        res.AddDateTimeColumn(name, data, validDst);
+      end;
+
+      else
+        Error(ER_UNSUPPORTED_COLUMN_TYPE, colType);
+    end;
+
+    names.Add(name);
+    types.Add(colType);
+    cats.Add(IsCategorical(col.Info.Name));
+  end;
+
+  res.SetSchema(new DataFrameSchema(
+    names.ToArray,
+    types.ToArray,
+    cats.ToArray
+  ));
+
+  Result := res;
+end;
+
+procedure DataFrame.Print(maxRows: integer; headRows: integer; decimals: integer;
+  dateTimeFormat: string; headColumns: integer);
+begin
+  var colCount := columns.Count;
+  if colCount = 0 then exit;
+
+  var rowCount := RowCount;
+  if rowCount = 0 then exit;
+
+  if maxRows < 1 then exit;
+  if decimals < 0 then decimals := 0;
+
+  if rowCount <= maxRows then
+    headRows := rowCount
+  else
+  begin
+    if headRows = -1 then
+      headRows := (maxRows + 1) div 2;
+
+    if headRows < 0 then headRows := 0;
+    if headRows > maxRows then headRows := maxRows;
+  end;
+
+  var tailRows := maxRows - headRows;
+
+  if tailRows < 0 then
+    tailRows := 0;
+
+  if tailRows > rowCount - headRows then
+    tailRows := rowCount - headRows;
+
+  var visibleCols := new List<integer>;
+  var showEllipsisColumn := False;
+
+  if (headColumns < 0) and (colCount > 12) then
+    headColumns := 10;
+
+  if (headColumns < 0) or (headColumns >= colCount) or (colCount <= headColumns + 2) then
+    for var j := 0 to colCount - 1 do
+      visibleCols.Add(j)
+  else
+  begin
+    for var j := 0 to headColumns - 1 do
+      visibleCols.Add(j);
+
+    var tailStart := PABCSystem.Max(headColumns, colCount - 2);
+    showEllipsisColumn := tailStart > headColumns;
+
+    for var j := tailStart to colCount - 1 do
+      visibleCols.Add(j);
+  end;
+
+  var visibleCount := visibleCols.Count;
+  var widths := new integer[visibleCount];
+  var ellipsisWidth := 3;
+
+  // --- начальная ширина = длина заголовка ---
+  for var k := 0 to visibleCount - 1 do
+  begin
+    var j := visibleCols[k];
+    widths[k] := columns[j].Info.Name.Length;
+    if widths[k] < 2 then
+      widths[k] := 2;
+  end;
+
+  var cursor := GetCursor;
+
+  // --- scan head ---
+  for var i := 0 to headRows - 1 do
+    for var k := 0 to visibleCount - 1 do
+    begin
+      var s := GetCellTextForPrint(Self, cursor, i, visibleCols[k], decimals, dateTimeFormat);
+      if s.Length > widths[k] then
+        widths[k] := s.Length;
+    end;
+
+  // --- scan tail ---
+  if rowCount > headRows then
+    for var i := rowCount - tailRows to rowCount - 1 do
+      if i >= headRows then
+        for var k := 0 to visibleCount - 1 do
+        begin
+          var s := GetCellTextForPrint(Self, cursor, i, visibleCols[k], decimals, dateTimeFormat);
+          if s.Length > widths[k] then
+            widths[k] := s.Length;
+        end;
+
+  // --- header ---
+  for var k := 0 to visibleCount - 1 do
+  begin
+    PABCSystem.Print(columns[visibleCols[k]].Info.Name.PadLeft(widths[k]));
+
+    if (showEllipsisColumn and (k = headColumns - 1)) or (k < visibleCount - 1) then
+      Write(' ');
+
+    if showEllipsisColumn and (k = headColumns - 1) then
+    begin
+      PABCSystem.Print('...'.PadLeft(ellipsisWidth));
+      Write(' ');
+    end;
+  end;
+
+  PABCSystem.Println;
+
+  // --- head rows ---
+  for var i := 0 to headRows - 1 do
+  begin
+    for var k := 0 to visibleCount - 1 do
+    begin
+      var s := GetCellTextForPrint(Self, cursor, i, visibleCols[k], decimals, dateTimeFormat);
+      PABCSystem.Print(s.PadLeft(widths[k]));
+
+      if (showEllipsisColumn and (k = headColumns - 1)) or (k < visibleCount - 1) then
+        Write(' ');
+
+      if showEllipsisColumn and (k = headColumns - 1) then
+      begin
+        PABCSystem.Print('...'.PadLeft(ellipsisWidth));
+        Write(' ');
+      end;
+    end;
+
+    PABCSystem.Println;
+  end;
+
+  // --- ellipsis ---
+  if headRows + tailRows < rowCount then
+  begin
+    for var k := 0 to visibleCount - 1 do
+    begin
+      PABCSystem.Print($'…'.PadLeft(widths[k]));
+
+      if (showEllipsisColumn and (k = headColumns - 1)) or (k < visibleCount - 1) then
+        Write(' ');
+
+      if showEllipsisColumn and (k = headColumns - 1) then
+      begin
+        PABCSystem.Print($'…'.PadLeft(ellipsisWidth));
+        Write(' ');
+      end;
+    end;
+
+    PABCSystem.Println;
+  end;
+
+  // --- tail rows ---
+  for var i := rowCount - tailRows to rowCount - 1 do
+    if i >= headRows then
+    begin
+      for var k := 0 to visibleCount - 1 do
+      begin
+        var s := GetCellTextForPrint(Self, cursor, i, visibleCols[k], decimals, dateTimeFormat);
+        PABCSystem.Print(s.PadLeft(widths[k]));
+
+        if (showEllipsisColumn and (k = headColumns - 1)) or (k < visibleCount - 1) then
+          Write(' ');
+
+        if showEllipsisColumn and (k = headColumns - 1) then
+        begin
+          PABCSystem.Print('...'.PadLeft(ellipsisWidth));
+          Write(' ');
+        end;
+      end;
+
+      PABCSystem.Println;
+    end;
+end;
+
+procedure DataFrame.Println(maxRows: integer; headRows: integer; decimals: integer;
+  dateTimeFormat: string; headColumns: integer);
+begin
+  Print(maxRows, headRows, decimals, dateTimeFormat, headColumns);
+  PABCSystem.Println;
+end;
+
+function ColumnTypeToString(ct: ColumnType): string;
+begin
+  case ct of
+    ctInt: Result := 'Int';
+    ctFloat: Result := 'Float';
+    ctStr: Result := 'Str';
+    ctBool: Result := 'Bool';
+    ctDateTime: Result := 'DateTime';
+  end;
+end;
+
+function DT(year, month, day: integer): System.DateTime;
+begin
+  Result := System.DateTime.Create(year, month, day);
+end;
+
+function DT(year, month, day, hour, minute, second: integer): System.DateTime;
+begin
+  Result := System.DateTime.Create(year, month, day, hour, minute, second);
+end;
+
+function UiLabel(s: string): string;
+begin
+  var p := s.IndexOf('!!');
+  if p >= 0 then
+    Result := s.Substring(0, p)
+  else
+    Result := s;
+end;
+
+function AggregationSuffix(kind: AggregationKind): string;
+begin
+  case kind of
+    akCount: Result := UiLabel(DF_SUFFIX_COUNT);
+    akSum:   Result := UiLabel(DF_SUFFIX_SUM);
+    akMean:  Result := UiLabel(DF_SUFFIX_MEAN);
+    akStd:   Result := UiLabel(DF_SUFFIX_STD);
+    akMin:   Result := UiLabel(DF_SUFFIX_MIN);
+    akMax:   Result := UiLabel(DF_SUFFIX_MAX);
+  end;
+end;
+
+procedure DataFrame.PrintSchema;
+begin
+  var nameWidth := fSchema.ColumnNames.Max(s -> s.Length);
+  var typeWidth := 8; // DateTime
+
+  for var i := 0 to ColumnCount - 1 do
+  begin
+    var name := fSchema.NameAt(i).PadRight(nameWidth);
+    var typ := ColumnTypeToString(GetColumnType(i)).PadRight(typeWidth);
+    PABCSystem.Println($'{name} : {typ}');
+  end;
+end;
+
+procedure DataFrame.PrintInfo;
+begin
+  PABCSystem.Println($'Строк     : {RowCount}');
+  PABCSystem.Println($'Столбцов  : {ColumnCount}');
+
+  var nameWidth := fSchema.ColumnNames.Max(s -> s.Length);
+
+  // сначала считаем реальные строки типов
+  var types := new string[ColumnCount];
+  var maxTypeWidth := 0;
+
+  for var i := 0 to ColumnCount - 1 do
+  begin
+    var t := ColumnTypeToString(GetColumnType(i));
+    if fSchema.IsCategoricalAt(i) then
+      t += ' (categorical)';
+
+    types[i] := t;
+
+    if t.Length > maxTypeWidth then
+      maxTypeWidth := t.Length;
+  end;
+
+  var infoWidth := nameWidth + 3 + maxTypeWidth + 20;
+
+  PABCSystem.Println('=' * infoWidth);
+
+  for var i := 0 to ColumnCount - 1 do
+  begin
+    var name := fSchema.NameAt(i).PadRight(nameWidth);
+    var typ := types[i].PadRight(maxTypeWidth);
+    var nonMissing := Count(i);
+    var missing := RowCount - nonMissing;
+    var info :=
+      if missing = 0 then
+        $'{nonMissing} без пропусков'
+      else
+        $'{nonMissing} без пропусков, {missing} пропусков';
+
+    PABCSystem.Println($'{name} : {typ} ({info})');
+  end;
+end;
+
+procedure DataFrame.AssertSchemaConsistent;
+begin
+  {$IFNDEF Test}
+  
+  if columns.Count = 0 then
+  begin
+    if fSchema.ColumnCount <> 0 then
+      Error(ER_SCHEMA_COLUMNCOUNT_MISMATCH, fSchema.ColumnCount, columns.Count);
+    exit;
+  end;
+
+  // --- 1. одинаковая RowCount у всех столбцов ---
+  var rc := fRowCount;
+  for var i := 0 to columns.Count - 1 do
+    if columns[i].RowCount <> rc then
+      Error(ER_SCHEMA_INCONSISTENT, columns[i].Info.Name, columns[i].RowCount, rc);
+
+  // --- 2. fschema.ColumnCount = columns.Count ---
+  if fschema.ColumnCount <> columns.Count then
+    Error(ER_SCHEMA_COLUMNCOUNT_MISMATCH, fSchema.ColumnCount, columns.Count);
+  
+  // --- 3. имена уникальны и корректно индексированы ---
+  for var i := 0 to columns.Count - 1 do
+  begin
+    var name := columns[i].Info.Name;
+    var schemaName := fSchema.NameAt(i);
+    var schemaType := fSchema.ColumnTypeAt(i);
+
+    if name <> schemaName then
+      Error(ER_SCHEMA_NAME_MISMATCH, i, name, schemaName);
+    
+    if columns[i].Info.ColType <> schemaType then
+      Error(ER_SCHEMA_TYPE_MISMATCH, name, columns[i].Info.ColType, schemaType);
+
+    if not fSchema.HasColumn(name) then
+      Error(ER_SCHEMA_COLUMN_MISSING, name);
+      
+    var idx := ColumnIndex(name);
+    if idx <> i then
+      Error(ER_SCHEMA_COLUMN_INDEX_INCONSISTENT, name, idx, i);
+  end;
+
+  {$ENDIF}
+end;
+
+function DataFrame.GetColumns: sequence of Column;
+begin
+  foreach var c in columns do
+    yield c;
+end;
+
+function DataFrame.GetColumn(i: integer): Column;
+begin
+  Result := columns[i];
+end;
+
+/// Добавляет в DataFrame столбец-представление (view),
+/// использующий те же данные, что и исходный столбец
+procedure DataFrame.AddColumnAlias(src: Column);
+begin
+  case src.Info.ColType of
+    ctInt:
+      AddIntColumn(src.Info.Name, IntColumn(src).Data, IntColumn(src).IsValid);
+    ctFloat:
+      AddFloatColumn(src.Info.Name, FloatColumn(src).Data, FloatColumn(src).IsValid);
+    ctStr:
+      AddStrColumn(src.Info.Name, StrColumn(src).Data, StrColumn(src).IsValid);
+    ctBool:
+      AddBoolColumn(src.Info.Name, BoolColumn(src).Data, BoolColumn(src).IsValid);
+    ctDateTime:
+      AddDateTimeColumn(src.Info.Name, DateTimeColumn(src).Data, DateTimeColumn(src).IsValid);
+  end;
+end;
+
+function DataFrame.CastFloatToIntColumns(names: array of string): DataFrame;
+begin
+  var toCast := new HashSet<string>(names);
+
+  var res := new DataFrame;
+
+  foreach var col in GetColumns do
+  begin
+    var name := col.Info.Name;
+
+    if toCast.Contains(name) then
+    begin
+      if col.Info.ColType <> ctFloat then
+        ArgumentError(ER_CAST_COLUMN_NOT_FLOAT, name);
+
+      var fc := FloatColumn(col);
+      var n := fc.Data.Length;
+      var data := new integer[n];
+
+      for var i := 0 to n - 1 do
+      begin
+        if not fc.IsValid[i] then
+          continue;
+
+        var v := fc.Data[i];
+        var iv := Round(v);
+
+        if Abs(v - iv) > 1e-9 then
+          ArgumentError(ER_CAST_NON_INTEGER_VALUE, name, v, i + 1);
+
+        data[i] := iv;
+      end;
+
+      res.AddIntColumn(name, data, fc.IsValid);
+    end
+    else
+      res.AddColumnAlias(col);
+  end;
+
+  // пересобираем schema (меняются ТИПЫ)
+  var n := fSchema.ColumnCount;
+
+  var namesArr := new string[n];
+  var types := new ColumnType[n];
+  var cats := new boolean[n];
+
+  for var i := 0 to n - 1 do
+  begin
+    var name := fSchema.NameAt(i);
+
+    namesArr[i] := name;
+    cats[i] := fSchema.IsCategoricalAt(i);
+
+    if toCast.Contains(name) then
+      types[i] := ctInt
+    else
+      types[i] := fSchema.ColumnTypeAt(i);
+  end;
+
+  res.SetSchema(new DataFrameSchema(namesArr, types, cats));
+
+  Result := res;
+end;
+
+static function DataFrame.FromCsv(
+  filename: string;
+  delimiter: char;
+  hasHeader: boolean;
+  columnTypes: Dictionary<string, ColumnType>;
+  categoricalColumns: array of string;
+  sampleSize: integer;
+  inferTypes: boolean;
+  inferCategorical: boolean
+): DataFrame;
+begin
+  Result := CsvLoader.Load(
+    filename,
+    delimiter,
+    hasHeader,
+    nil,
+    nil,
+    true,
+    false,
+    columnTypes,
+    sampleSize,
+    nil,
+    inferTypes,
+    nil,
+    categoricalColumns,
+    inferCategorical
+  );
+end;
+
+static function DataFrame.FromCsvText(
+  text: string;
+  delimiter: char;
+  hasHeader: boolean;
+  columnTypes: Dictionary<string, ColumnType>;
+  categoricalColumns: array of string;
+  sampleSize: integer;
+  inferTypes: boolean;
+  inferCategorical: boolean
+): DataFrame;
+begin
+  Result := CsvLoader.LoadFromLines(
+    text.ToLines,
+    delimiter,
+    hasHeader,
+    nil,
+    true,
+    false,
+    columnTypes,
+    sampleSize,
+    nil,
+    inferTypes,
+    nil,
+    categoricalColumns,
+    inferCategorical
+  );
+end;
+
+static function DataFrame.FromODS(
+  filename: string;
+  sheet: string;
+  hasHeader: boolean;
+  columnTypes: Dictionary<string, ColumnType>;
+  categoricalColumns: array of string;
+  sampleSize: integer;
+  inferTypes: boolean;
+  inferCategorical: boolean
+): DataFrame;
+begin
+  Result := LoadFromRows(
+    ODSReader.ReadSheet(filename, sheet),
+    hasHeader,
+    nil,
+    true,
+    false,
+    columnTypes,
+    sampleSize,
+    nil,
+    inferTypes,
+    nil,
+    categoricalColumns,
+    inferCategorical,
+    100,
+    0.2,
+    0.8,
+    5
+  );
+end;
+
+static function DataFrame.Concat(params dfs: array of DataFrame): DataFrame;
+begin
+  if (dfs = nil) or (dfs.Length = 0) then
+    ArgumentError(ER_CONCAT_EMPTY);
+
+  for var i := 0 to dfs.Length - 1 do
+    if dfs[i] = nil then
+      ArgumentError(ER_CONCAT_DF_NULL);
+
+  var first := dfs[0];
+  var schema := first.fSchema;
+
+  for var di := 1 to dfs.Length - 1 do
+  begin
+    var curSchema := dfs[di].fSchema;
+
+    if curSchema.ColumnCount <> schema.ColumnCount then
+      ArgumentError(ER_CONCAT_SCHEMA_MISMATCH);
+
+    for var ci := 0 to schema.ColumnCount - 1 do
+      if (curSchema.NameAt(ci) <> schema.NameAt(ci)) or
+         (curSchema.ColumnTypeAt(ci) <> schema.ColumnTypeAt(ci)) or
+         (curSchema.IsCategoricalAt(ci) <> schema.IsCategoricalAt(ci)) then
+        ArgumentError(ER_CONCAT_SCHEMA_MISMATCH);
+  end;
+
+  var totalRows := 0;
+  for var di := 0 to dfs.Length - 1 do
+    totalRows += dfs[di].RowCount;
+
+  var res := new DataFrame;
+
+  for var ci := 0 to schema.ColumnCount - 1 do
+  begin
+    var name := schema.NameAt(ci);
+
+    case schema.ColumnTypeAt(ci) of
+      ctInt:
+      begin
+        var data := new integer[totalRows];
+        var valid := new boolean[totalRows];
+        var pos := 0;
+
+        for var di := 0 to dfs.Length - 1 do
+        begin
+          var col := IntColumn(dfs[di].columns[ci]);
+          for var r := 0 to col.Data.Length - 1 do
+          begin
+            data[pos] := col.Data[r];
+            valid[pos] := col.IsValid[r];
+            pos += 1;
+          end;
+        end;
+
+        res.AddIntColumn(name, data, valid);
+      end;
+
+      ctFloat:
+      begin
+        var data := new real[totalRows];
+        var valid := new boolean[totalRows];
+        var pos := 0;
+
+        for var di := 0 to dfs.Length - 1 do
+        begin
+          var col := FloatColumn(dfs[di].columns[ci]);
+          for var r := 0 to col.Data.Length - 1 do
+          begin
+            data[pos] := col.Data[r];
+            valid[pos] := col.IsValid[r];
+            pos += 1;
+          end;
+        end;
+
+        res.AddFloatColumn(name, data, valid);
+      end;
+
+      ctStr:
+      begin
+        var data := new string[totalRows];
+        var valid := new boolean[totalRows];
+        var pos := 0;
+
+        for var di := 0 to dfs.Length - 1 do
+        begin
+          var col := StrColumn(dfs[di].columns[ci]);
+          for var r := 0 to col.Data.Length - 1 do
+          begin
+            data[pos] := col.Data[r];
+            valid[pos] := col.IsValid[r];
+            pos += 1;
+          end;
+        end;
+
+        res.AddStrColumn(name, data, valid);
+      end;
+
+      ctBool:
+      begin
+        var data := new boolean[totalRows];
+        var valid := new boolean[totalRows];
+        var pos := 0;
+
+        for var di := 0 to dfs.Length - 1 do
+        begin
+          var col := BoolColumn(dfs[di].columns[ci]);
+          for var r := 0 to col.Data.Length - 1 do
+          begin
+            data[pos] := col.Data[r];
+            valid[pos] := col.IsValid[r];
+            pos += 1;
+          end;
+        end;
+
+        res.AddBoolColumn(name, data, valid);
+      end;
+
+      ctDateTime:
+      begin
+        var data := new System.DateTime[totalRows];
+        var valid := new boolean[totalRows];
+        var pos := 0;
+
+        for var di := 0 to dfs.Length - 1 do
+        begin
+          var col := DateTimeColumn(dfs[di].columns[ci]);
+          for var r := 0 to col.Data.Length - 1 do
+          begin
+            data[pos] := col.Data[r];
+            valid[pos] := col.IsValid[r];
+            pos += 1;
+          end;
+        end;
+
+        res.AddDateTimeColumn(name, data, valid);
+      end;
+    end;
+  end;
+
+  res.SetSchema(schema);
+  Result := res;
+end;
+
+procedure DataFrame.ToCsv(filename: string);
+begin
+  CsvSaver.Save(self, filename, ',', true);
+end;
+
+
+//-----------------------------
+//           GroupKey
+//-----------------------------
+
+constructor GroupKey.Create(values: array of object);
+begin
+  if values = nil then
+    ArgumentNullError(ER_ARG_NULL, 'values');
+
+  fValues := Copy(values);
+end;
+
+function GroupKey.Equals(obj: object): boolean;
+begin
+  if obj = nil then
+  begin
+    Result := false;
+    exit;
+  end;
+
+  var other := obj as GroupKey;
+  if other = nil then
+  begin
+    Result := false;
+    exit;
+  end;
+
+  if fValues.Length <> other.fValues.Length then
+  begin
+    Result := false;
+    exit;
+  end;
+
+  for var i := 0 to fValues.Length - 1 do
+  begin
+    var a := fValues[i];
+    var b := other.fValues[i];
+
+    if a = nil then
+    begin
+      if b <> nil then
+      begin
+        Result := false;
+        exit;
+      end;
+    end
+    else if not a.Equals(b) then
+    begin
+      Result := false;
+      exit;
+    end;
+  end;
+
+  Result := true;
+end;
+
+function GroupKey.GetHashCode: integer;
+begin
+  var h := 17;
+
+  for var i := 0 to fValues.Length - 1 do
+  begin
+    var x := fValues[i];
+    var xh := if x = nil then 0 else x.GetHashCode;
+    h := h * 31 + xh;
+  end;
+
+  Result := h;
+end;
+
+function GroupKey.CompareTo(other: GroupKey): integer;
+begin
+  for var i := 0 to Values.Length - 1 do
+  begin
+    var a := Values[i];
+    var b := other.Values[i];
+
+    var cmp := 0;
+
+    if a is integer then
+      cmp := integer(a).CompareTo(integer(b))
+    else if a is string then
+      cmp := string(a).CompareTo(string(b))
+    else if a is boolean then
+      cmp := boolean(a).CompareTo(boolean(b))
+    else
+      raise new Exception('Unsupported GroupKey type');
+
+    if cmp <> 0 then
+      exit(cmp);
+  end;
+
+  Result := 0;
+end;
+
+//-----------------------------
+//          GroupView
+//-----------------------------
+
+procedure GetNumericColumn(
+  df: DataFrame;
+  colIndex: integer;
+  var dataInt: array of integer;
+  var dataFloat: array of real;
+  var valid: array of boolean;
+  var isInt: boolean
+);
+begin
+  if (colIndex < 0) or (colIndex >= df.ColumnCount) then
+    ArgumentError(ER_COLUMN_OUT_OF_RANGE, colIndex);
+  
+  var col := df.columns[colIndex];
+
+  if col is IntColumn then
+  begin
+    var c := IntColumn(col);
+    dataInt := c.Data;
+    dataFloat := nil;
+    valid := c.IsValid;
+    isInt := true;
+  end
+  else if col is FloatColumn then
+  begin
+    var c := FloatColumn(col);
+    dataFloat := c.Data;
+    dataInt := nil;
+    valid := c.IsValid;
+    isInt := false;
+  end
+  else
+    Error(ER_COLUMN_NOT_NUMERIC);
+end;
+
+constructor GroupView.Create(df: DataFrame; idxs: List<integer>);
+begin
+  source := df;
+  indices := idxs;
+end;
+
+function DataFrameGroup.ToString: string;
+begin
+  var cnt := if Data = nil then 0 else Data.RowCount;
+  Result := $'{Key} (Count={cnt})';
+end;
+
+function GroupView.Count: integer;
+begin
+  Result := indices.Count;
+end;
+
+function GroupView.Sum(colName: string): real;
+begin
+  var ci := source.ColumnIndex(colName);
+
+  var dataInt: array of integer;
+  var dataFloat: array of real;
+  var valid: array of boolean;
+  var isInt: boolean;
+
+  // используем ТВОЙ helper
+  GetNumericColumn(source, ci, dataInt, dataFloat, valid, isInt);
+
+  var s := 0.0;
+
+  for var j := 0 to indices.Count - 1 do
+  begin
+    var i := indices[j];
+
+    if not valid[i] then
+      continue;
+
+    s += if isInt then dataInt[i] else dataFloat[i];
+  end;
+
+  Result := s;
+end;
+
+function GroupView.Mean(colName: string): real;
+begin
+  var ci := source.ColumnIndex(colName);
+
+  var dataInt: array of integer;
+  var dataFloat: array of real;
+  var valid: array of boolean;
+  var isInt: boolean;
+
+  GetNumericColumn(source, ci, dataInt, dataFloat, valid, isInt);
+
+  var s := 0.0;
+  var cnt := 0;
+
+  for var j := 0 to indices.Count - 1 do
+  begin
+    var i := indices[j];
+
+    if not valid[i] then
+      continue;
+
+    s += if isInt then dataInt[i] else dataFloat[i];
+    cnt += 1;
+  end;
+
+  Result := if cnt = 0 then 0.0 else s / cnt;
+end;
+
+function GroupView.Min(colName: string): real;
+begin
+  var ci := source.ColumnIndex(colName);
+
+  var dataInt: array of integer;
+  var dataFloat: array of real;
+  var valid: array of boolean;
+  var isInt: boolean;
+
+  GetNumericColumn(source, ci, dataInt, dataFloat, valid, isInt);
+
+  var m := real.MaxValue;
+  var has := false;
+
+  for var j := 0 to indices.Count - 1 do
+  begin
+    var i := indices[j];
+
+    if not valid[i] then
+      continue;
+
+    var v := if isInt then dataInt[i] else dataFloat[i];
+
+    if not has or (v < m) then
+    begin
+      m := v;
+      has := true;
+    end;
+  end;
+
+  Result := if has then m else 0.0;
+end;
+
+function GroupView.Max(colName: string): real;
+begin
+  var ci := source.ColumnIndex(colName);
+
+  var dataInt: array of integer;
+  var dataFloat: array of real;
+  var valid: array of boolean;
+  var isInt: boolean;
+
+  GetNumericColumn(source, ci, dataInt, dataFloat, valid, isInt);
+
+  var m := real.MinValue;
+  var has := false;
+
+  for var j := 0 to indices.Count - 1 do
+  begin
+    var i := indices[j];
+
+    if not valid[i] then
+      continue;
+
+    var v := if isInt then dataInt[i] else dataFloat[i];
+
+    if not has or (v > m) then
+    begin
+      m := v;
+      has := true;
+    end;
+  end;
+
+  Result := if has then m else 0.0;
+end;
+
+//-----------------------------
+//        GroupByContext
+//-----------------------------
+
+constructor GroupByContext.Create(df: DataFrame; keyCols: array of integer);
+begin
+  source := df;
+  
+  if (keyCols = nil) or (keyCols.Length = 0) then
+    ArgumentError(ER_FEATURES_EMPTY);
+
+  if keyCols.Length = 1 then
+  begin
+    // fast path
+    singleKey := true;
+    keyColumn := keyCols[0];
+    groups1 := new Dictionary<object, List<integer>>;
+
+    var cursor := df.GetCursor;
+    while cursor.MoveNext do
+    begin
+      if not cursor.IsValid(keyColumn) then
+        continue;
+
+      var key: object;
+      case df.columns[keyColumn].Info.ColType of
+        ctInt: key := cursor.Int(keyColumn);
+        ctStr: key := cursor.Str(keyColumn);
+        ctBool: key := cursor.Bool(keyColumn);
+        ctDateTime: key := cursor.DateTime(keyColumn);
+        else Error(ER_GROUPBY_UNSUPPORTED_KEY_TYPE, df.columns[keyColumn].Info.ColType);
+      end;
+
+      var lst: List<integer>;
+      if not groups1.TryGetValue(key, lst) then
+      begin
+        lst := new List<integer>;
+        groups1[key] := lst;
+      end;
+
+      lst.Add(cursor.Position);
+    end;
+  end
+  else
+  begin
+    singleKey := false;
+    keyColumns := Copy(keyCols);
+    groupsN := new Dictionary<GroupKey, List<integer>>;
+  
+    var cursor := df.GetCursor;
+    while cursor.MoveNext do
+    begin
+      var values := new object[keyColumns.Length];
+      var ok := true;
+  
+      for var i := 0 to keyColumns.Length - 1 do
+      begin
+        var c := keyColumns[i];
+        if not cursor.IsValid(c) then
+        begin
+          ok := false;
+          break;
+        end;
+  
+        case df.columns[c].Info.ColType of
+          ctInt: values[i] := cursor.Int(c);
+          ctStr: values[i] := cursor.Str(c);
+          ctBool: values[i] := cursor.Bool(c);
+          ctDateTime: values[i] := cursor.DateTime(c);
+          else Error(ER_GROUPBY_UNSUPPORTED_KEY_TYPE, df.columns[c].Info.ColType);
+        end;
+      end;
+  
+      if not ok then
+        continue;
+  
+      var key := new GroupKey(values);
+  
+      var lst: List<integer>;
+      if not groupsN.TryGetValue(key, lst) then
+      begin
+        lst := new List<integer>;
+        groupsN[key] := lst;
+      end;
+      
+      lst.Add(cursor.Position);
+    end;
+  end;
+end;
+
+function GroupByContext.BuildGroupData(indices: List<integer>): DataFrame;
+begin
+  Result := source.TakeRows(indices.ToArray);
+end;
+
+function GroupByContext.MakeKeyValue(ci: integer; key: object): DataValue;
+begin
+  case source.fSchema.ColumnTypeAt(ci) of
+    ctInt: Result := new DataValue(source.fSchema.NameAt(ci), integer(key));
+    ctStr: Result := new DataValue(source.fSchema.NameAt(ci), string(key));
+    ctBool: Result := new DataValue(source.fSchema.NameAt(ci), boolean(key));
+    ctDateTime: Result := new DataValue(source.fSchema.NameAt(ci), System.DateTime(key));
+    else Error(ER_GROUPBY_UNSUPPORTED_KEY_TYPE, source.fSchema.ColumnTypeAt(ci));
+  end;
+end;
+
+function GroupByContext.Groups: sequence of DataFrameGroup;
+begin
+  if not singleKey then
+    Error(ER_GROUPS_ONLY_SINGLE_KEY);
+
+  var res := new List<DataFrameGroup>;
+  var groups := groups1;
+  var ci := keyColumn;
+  var keys: array of object;
+
+  case source.fSchema.ColumnTypeAt(ci) of
+    ctInt: keys := groups.Keys.OrderBy(k -> integer(k)).Select(k -> object(k)).ToArray;
+    ctStr: keys := groups.Keys.OrderBy(k -> string(k)).Select(k -> object(k)).ToArray;
+    ctBool: keys := groups.Keys.OrderBy(k -> boolean(k)).Select(k -> object(k)).ToArray;
+    ctDateTime: keys := groups.Keys.OrderBy(k -> System.DateTime(k)).Select(k -> object(k)).ToArray;
+    else Error(ER_GROUPBY_UNSUPPORTED_KEY_TYPE, source.fSchema.ColumnTypeAt(ci));
+  end;
+
+  foreach var key in keys do
+  begin
+    var g: DataFrameGroup;
+    g.Key := MakeKeyValue(ci, key);
+    g.Data := BuildGroupData(groups[key]);
+    res.Add(g);
+  end;
+
+  Result := res;
+end;
+
+function GroupByContext.Count: DataFrame;
+begin
+  var res := new DataFrame;
+
+  var names := new List<string>;
+  var types := new List<ColumnType>;
+  var cats := new List<boolean>;
+
+  if singleKey then
+  begin
+    var col := source.columns[keyColumn];
+    var keyName := col.Info.Name;
+  
+    var keys: array of object;
+  
+    case col.Info.ColType of
+      ctInt:
+        keys := groups1.Keys.OrderBy(k -> integer(k)).Select(k -> object(k)).ToArray;
+      ctStr:
+        keys := groups1.Keys.OrderBy(k -> string(k)).Select(k -> object(k)).ToArray;
+      ctBool:
+        keys := groups1.Keys.OrderBy(k -> boolean(k)).Select(k -> object(k)).ToArray;
+      ctDateTime:
+        keys := groups1.Keys.OrderBy(k -> System.DateTime(k)).Select(k -> object(k)).ToArray;
+      else
+        Error(ER_GROUPBY_UNSUPPORTED_KEY_TYPE);
+    end;
+  
+    var counts := new integer[keys.Length];
+  
+    for var i := 0 to keys.Length - 1 do
+      counts[i] := groups1[keys[i]].Count;
+  
+    // добавление ключевого столбца
+    case col.Info.ColType of
+      ctInt:
+      begin
+        res.AddIntColumn(keyName, keys.Select(k -> integer(k)).ToArray, nil);
+        types.Add(ctInt);
+      end;
+  
+      ctStr:
+      begin
+        res.AddStrColumn(keyName, keys.Select(k -> string(k)).ToArray, nil);
+        types.Add(ctStr);
+      end;
+  
+      ctBool:
+      begin
+        res.AddBoolColumn(keyName, keys.Select(k -> boolean(k)).ToArray, nil);
+        types.Add(ctBool);
+      end;
+
+      ctDateTime:
+      begin
+        res.AddDateTimeColumn(keyName, keys.Select(k -> System.DateTime(k)).ToArray, nil);
+        types.Add(ctDateTime);
+      end;
+    end;
+  
+    names.Add(keyName);
+    cats.Add(source.fSchema.IsCategorical(keyName));
+  
+    res.AddIntColumn('count', counts, nil);
+    names.Add('count');
+    types.Add(ctInt);
+    cats.Add(false);
+  end
+  else
+  begin
+    var keys := groupsN.Keys.OrderBy(k -> k).ToArray;
+    var counts := new integer[keys.Length];
+
+    for var i := 0 to keys.Length - 1 do
+      counts[i] := groupsN[keys[i]].Count;
+
+    for var k := 0 to keyColumns.Length - 1 do
+    begin
+      var ci := keyColumns[k];
+      var col := source.columns[ci];
+      var colName := col.Info.Name;
+
+      case source.fSchema.ColumnTypeAt(ci) of
+        ctInt:
+        begin
+          res.AddIntColumn(colName, keys.Select(key -> integer(key.Values[k])).ToArray, nil);
+          types.Add(ctInt);
+        end;
+      
+        ctStr:
+        begin
+          res.AddStrColumn(colName, keys.Select(key -> string(key.Values[k])).ToArray, nil);
+          types.Add(ctStr);
+        end;
+      
+        ctBool:
+        begin
+          res.AddBoolColumn(colName, keys.Select(key -> boolean(key.Values[k])).ToArray, nil);
+          types.Add(ctBool);
+        end;
+
+        ctDateTime:
+        begin
+          res.AddDateTimeColumn(colName, keys.Select(key -> System.DateTime(key.Values[k])).ToArray, nil);
+          types.Add(ctDateTime);
+        end;
+      
+        else
+          Error(ER_GROUPBY_UNSUPPORTED_KEY_TYPE);
+      end;
+
+      names.Add(colName);
+      cats.Add(true); // ключи — categorical
+    end;
+
+    res.AddIntColumn('count', counts, nil);
+    names.Add('count');
+    types.Add(ctInt);
+    cats.Add(false);
+  end;
+
+  // устанавливаем schema
+  res.SetSchema(new DataFrameSchema(
+    names.ToArray,
+    types.ToArray,
+    cats.ToArray
+  ));
+
+  Result := res;
+end;
+
+function GroupByContext.Mean(colName: string): DataFrame;
+begin
+  Result := Aggregate([colName], [akMean]);
+end;
+
+function GroupByContext.Sum(colName: string): DataFrame;
+begin
+  Result := Aggregate([colName], [akSum]);
+end;
+
+function GroupByContext.Min(colName: string): DataFrame;
+begin
+  Result := Aggregate([colName], [akMin]);
+end;
+
+function GroupByContext.Max(colName: string): DataFrame;
+begin
+  Result := Aggregate([colName], [akMax]);
+end;
+
+function GroupByContext.Std(colName: string): DataFrame;
+begin
+  Result := Aggregate([colName], [akStd]);
+end;
+
+function GroupByContext.Mean(colNames: array of string): DataFrame;
+begin
+  Result := Aggregate(colNames, [akMean]);
+end;
+
+function GroupByContext.Sum(colNames: array of string): DataFrame;
+begin
+  Result := Aggregate(colNames, [akSum]);
+end;
+
+function GroupByContext.Min(colNames: array of string): DataFrame;
+begin
+  Result := Aggregate(colNames, [akMin]);
+end;
+
+function GroupByContext.Max(colNames: array of string): DataFrame;
+begin
+  Result := Aggregate(colNames, [akMax]);
+end;
+
+function GroupByContext.Std(colNames: array of string): DataFrame;
+begin
+  Result := Aggregate(colNames, [akStd]);
+end;
+
+function GroupByContext.Filter(pred: Func<GroupView, boolean>): DataFrame;
+begin
+  if pred = nil then
+    ArgumentNullError(ER_ARG_NULL, 'pred');
+
+  var selected := new List<integer>;
+
+  if singleKey then
+  begin
+    var col := source.columns[keyColumn];
+    var keys: array of object;
+    
+    case col.Info.ColType of
+      ctInt: keys := groups1.Keys.OrderBy(k -> integer(k)).Select(k -> object(k)).ToArray;
+      ctStr: keys := groups1.Keys.OrderBy(k -> string(k)).Select(k -> object(k)).ToArray;
+      ctBool: keys := groups1.Keys.OrderBy(k -> boolean(k)).Select(k -> object(k)).ToArray;
+      ctDateTime: keys := groups1.Keys.OrderBy(k -> System.DateTime(k)).Select(k -> object(k)).ToArray;
+      else Error(ER_GROUPBY_UNSUPPORTED_KEY_TYPE);
+    end;
+
+    for var i := 0 to keys.Length - 1 do
+    begin
+      var idxs := groups1[keys[i]];
+      var g := new GroupView(source, idxs);
+
+      if pred(g) then
+        selected.AddRange(idxs);
+    end;
+  end
+  else
+  begin
+    var keys := groupsN.Keys.OrderBy(k -> k).ToArray;
+
+    for var i := 0 to keys.Length - 1 do
+    begin
+      var idxs := groupsN[keys[i]];
+      var g := new GroupView(source, idxs);
+
+      if pred(g) then
+        selected.AddRange(idxs);
+    end;
+  end;
+
+  // важно: порядок строк сохраняется как в исходных группах
+  Result := source.TakeRows(selected.ToArray);
+end;
+
+function GroupByContext.Describe(colName: string): DataFrame;
+begin
+  Result := Aggregate(
+    [colName],
+    [akCount, akMean, akStd, akMin, akMax]
+  );
+end;
+
+function GroupByContext.DescribeAll: DataFrame;
+begin
+  var cols := new List<string>;
+
+  // собираем все числовые колонки
+  for var i := 0 to source.ColumnCount - 1 do
+    case source.fSchema.ColumnTypeAt(i) of
+      ctInt, ctFloat:
+        cols.Add(source.fSchema.NameAt(i));
+    end;
+
+  if cols.Count = 0 then
+    ArgumentError(ER_FEATURES_EMPTY);
+
+  Result := Aggregate(
+    cols.ToArray,
+    [akCount, akMean, akStd, akMin, akMax]
+  );
+end;
+
+function GroupByContext.Aggregate(colName: string; kinds: array of AggregationKind): DataFrame;
+begin
+  Result := Aggregate([colName], kinds);
+end;
+
+function GroupByContext.Aggregate(colNames: array of string; kinds: array of AggregationKind): DataFrame;
+begin
+  if (colNames = nil) or (colNames.Length = 0) then
+    ArgumentError(ER_FEATURES_EMPTY);
+
+  if (kinds = nil) or (kinds.Length = 0) then
+    ArgumentError(ER_AGGREGATIONS_EMPTY);
+
+  var m := colNames.Length;
+  var n := if singleKey then groups1.Count else groupsN.Count;
+
+  // ----------------------------
+  // 1. Какие агрегаты реально нужны
+  // ----------------------------
+  var needCount := false;
+  var needSum := false;
+  var needMean := false;
+  var needStd := false;
+  var needMin := false;
+  var needMax := false;
+
+  foreach var kind in kinds do
+    case kind of
+      akCount: needCount := true;
+      akSum:   needSum := true;
+      akMean:  needMean := true;
+      akStd:   needStd := true;
+      akMin:   needMin := true;
+      akMax:   needMax := true;
+    end;
+
+  if needMean then
+  begin
+    needCount := true;
+    needSum := true;
+  end;
+
+  var needSumSq := needStd;
+  if needStd then
+  begin
+    needCount := true;
+    needSum := true;
+  end;
+
+  // ----------------------------
+  // 2. Подготовка ссылок на колонки
+  // ----------------------------
+  var colIndices := new integer[m];
+  var colsInt := new List<array of integer>;
+  var colsFloat := new List<array of real>;
+  var colsValid := new List<array of boolean>;
+  var colsIsInt := new boolean[m];
+
+  for var c := 0 to m - 1 do
+  begin
+    var ci := source.ColumnIndex(colNames[c]);
+    colIndices[c] := ci;
+
+    var dataInt: array of integer;
+    var dataFloat: array of real;
+    var valid: array of boolean;
+    var isInt: boolean;
+
+    GetNumericColumn(source, ci, dataInt, dataFloat, valid, isInt);
+
+    colsInt.Add(dataInt);
+    colsFloat.Add(dataFloat);
+    colsValid.Add(valid);
+    colsIsInt[c] := isInt;
+  end;
+
+  // ----------------------------
+  // 3. Ключи групп — вычисляем один раз
+  // ----------------------------
+  var keys1: array of object := nil;
+  var keysN: array of GroupKey := nil;
+
+  if singleKey then
+  begin
+    var col := source.columns[keyColumn];
+  
+    case col.Info.ColType of
+      ctInt:
+        keys1 := groups1.Keys
+          .OrderBy(k -> integer(k))
+          .Select(k -> object(k))
+          .ToArray;
+  
+      ctStr:
+        keys1 := groups1.Keys
+          .OrderBy(k -> string(k))
+          .Select(k -> object(k))
+          .ToArray;
+  
+      ctBool:
+        keys1 := groups1.Keys
+          .OrderBy(k -> boolean(k))
+          .Select(k -> object(k))
+          .ToArray;
+
+      ctDateTime:
+        keys1 := groups1.Keys
+          .OrderBy(k -> System.DateTime(k))
+          .Select(k -> object(k))
+          .ToArray;
+
+      else
+        Error(ER_GROUPBY_UNSUPPORTED_KEY_TYPE);
+    end;
+  end
+  else
+    keysN := groupsN.Keys.OrderBy(k -> k).ToArray;
+
+  // ----------------------------
+  // 4. Аллокации только под нужные агрегаты
+  // ----------------------------
+  var counts := new List<array of integer>;
+  var sums := new List<array of real>;
+  var sumsq := new List<array of real>;
+  var mins := new List<array of real>;
+  var maxs := new List<array of real>;
+
+  for var c := 0 to m - 1 do
+  begin
+    if needCount then counts.Add(new integer[n]) else counts.Add(nil);
+    if needSum then sums.Add(new real[n]) else sums.Add(nil);
+    if needSumSq then sumsq.Add(new real[n]) else sumsq.Add(nil);
+    if needMin then
+    begin
+      var arr := new real[n];
+      for var g := 0 to n - 1 do
+        arr[g] := real.MaxValue;
+      mins.Add(arr);
+    end
+    else mins.Add(nil);
+
+    if needMax then
+    begin
+      var arr := new real[n];
+      for var g := 0 to n - 1 do
+        arr[g] := real.MinValue;
+      maxs.Add(arr);
+    end
+    else maxs.Add(nil);
+  end;
+
+  // ----------------------------
+  // 5. Один проход по группам
+  // ----------------------------
+  if singleKey then
+  begin
+    for var g := 0 to n - 1 do
+    begin
+      var idxs := groups1[keys1[g]];
+
+      for var j := 0 to idxs.Count - 1 do
+      begin
+        var row := idxs[j];
+
+        for var c := 0 to m - 1 do
+        begin
+          var validArr := colsValid[c];
+          if (validArr <> nil) and not validArr[row] then
+            continue;
+
+          var v := if colsIsInt[c] then colsInt[c][row] else colsFloat[c][row];
+
+          if needCount then counts[c][g] += 1;
+          if needSum then sums[c][g] += v;
+          if needSumSq then sumsq[c][g] += v * v;
+
+          if needMin and (v < mins[c][g]) then mins[c][g] := v;
+          if needMax and (v > maxs[c][g]) then maxs[c][g] := v;
+        end;
+      end;
+    end;
+  end
+  else
+  begin
+    for var g := 0 to n - 1 do
+    begin
+      var idxs := groupsN[keysN[g]];
+
+      for var j := 0 to idxs.Count - 1 do
+      begin
+        var row := idxs[j];
+
+        for var c := 0 to m - 1 do
+        begin
+          var validArr := colsValid[c];
+          if (validArr <> nil) and not validArr[row] then
+            continue;
+
+          var v := if colsIsInt[c] then colsInt[c][row] else colsFloat[c][row];
+
+          if needCount then counts[c][g] += 1;
+          if needSum then sums[c][g] += v;
+          if needSumSq then sumsq[c][g] += v * v;
+
+          if needMin and (v < mins[c][g]) then mins[c][g] := v;
+          if needMax and (v > maxs[c][g]) then maxs[c][g] := v;
+        end;
+      end;
+    end;
+  end;
+
+  // ----------------------------
+  // 6. Пустые группы: min/max делаем 0.0
+  // ----------------------------
+  if needMin or needMax then
+    for var c := 0 to m - 1 do
+      for var g := 0 to n - 1 do
+        if needCount and (counts[c][g] = 0) then
+        begin
+          if needMin then mins[c][g] := 0.0;
+          if needMax then maxs[c][g] := 0.0;
+        end;
+
+  // ----------------------------
+  // 7. Формируем результат: сначала ключи
+  // ----------------------------
+  var res := new DataFrame;
+
+  var names := new List<string>;
+  var types := new List<ColumnType>;
+  var cats := new List<boolean>;
+
+  if singleKey then
+  begin
+    var col := source.columns[keyColumn];
+    var keyName := col.Info.Name;
+
+    case source.fSchema.ColumnTypeAt(keyColumn) of
+      ctInt:
+        res.AddIntColumn(keyName, keys1.Select(k -> integer(k)).ToArray, nil);
+      ctStr:
+        res.AddStrColumn(keyName, keys1.Select(k -> string(k)).ToArray, nil);
+      ctBool:
+        res.AddBoolColumn(keyName, keys1.Select(k -> boolean(k)).ToArray, nil);
+      ctDateTime:
+        res.AddDateTimeColumn(keyName, keys1.Select(k -> System.DateTime(k)).ToArray, nil);
+    else
+      Error(ER_GROUPBY_UNSUPPORTED_KEY_TYPE, source.fSchema.ColumnTypeAt(keyColumn));
+    end;
+
+    names.Add(keyName);
+    types.Add(source.fSchema.ColumnTypeAt(keyColumn));
+    cats.Add(source.fSchema.IsCategorical(keyName));
+  end
+  else
+  begin
+    for var k := 0 to keyColumns.Length - 1 do
+    begin
+      var ci := keyColumns[k];
+      var col := source.columns[ci];
+      var keyName := col.Info.Name;
+
+      case source.fSchema.ColumnTypeAt(ci) of
+        ctInt:
+          res.AddIntColumn(keyName, keysN.Select(key -> integer(key.Values[k])).ToArray, nil);
+        ctStr:
+          res.AddStrColumn(keyName, keysN.Select(key -> string(key.Values[k])).ToArray, nil);
+        ctBool:
+          res.AddBoolColumn(keyName, keysN.Select(key -> boolean(key.Values[k])).ToArray, nil);
+        ctDateTime:
+          res.AddDateTimeColumn(keyName, keysN.Select(key -> System.DateTime(key.Values[k])).ToArray, nil);
+      else
+        Error(ER_GROUPBY_UNSUPPORTED_KEY_TYPE, source.fSchema.ColumnTypeAt(ci));
+      end;
+
+      names.Add(keyName);
+      types.Add(source.fSchema.ColumnTypeAt(ci));
+      cats.Add(source.fSchema.IsCategorical(keyName));
+    end;
+  end;
+
+  // ----------------------------
+  // 8. Добавляем агрегаты
+  // Порядок: по колонкам, внутри — в порядке kinds
+  // ----------------------------
+  var usedNames := new HashSet<string>;
+
+  // сначала добавляем ключи (они уже в names)
+  foreach var nme in names do
+    usedNames.Add(nme);
+  
+  for var c := 0 to m - 1 do
+  begin
+    var baseName := colNames[c];
+  
+    foreach var kind in kinds do
+    begin
+      var colNameAgg := baseName + '_' + AggregationSuffix(kind);
+  
+      // проверка уникальности
+      if usedNames.Contains(colNameAgg) then
+        ArgumentError(ER_AGG_COLUMN_DUPLICATE, colNameAgg);
+  
+      usedNames.Add(colNameAgg);
+  
+      // добавление данных
+      case kind of
+        akCount:
+          res.AddIntColumn(colNameAgg, counts[c], nil);
+  
+        akSum:
+        begin
+          if colsIsInt[c] then
+          begin
+            var arr := new integer[n];
+            for var g := 0 to n - 1 do
+              arr[g] := Round(sums[c][g]);
+            res.AddIntColumn(colNameAgg, arr, nil);
+          end
+          else
+            res.AddFloatColumn(colNameAgg, sums[c], nil);
+        end;
+  
+        akMean:
+        begin
+          var arr := new real[n];
+          for var g := 0 to n - 1 do
+            arr[g] := if counts[c][g] = 0 then 0.0 else sums[c][g] / counts[c][g];
+          res.AddFloatColumn(colNameAgg, arr, nil);
+        end;
+  
+        akStd:
+        begin
+          var arr := new real[n];
+          for var g := 0 to n - 1 do
+            if counts[c][g] <= 1 then
+              arr[g] := 0.0
+            else
+              arr[g] := Sqrt((sumsq[c][g] - sums[c][g] * sums[c][g] / counts[c][g]) / (counts[c][g] - 1));
+          res.AddFloatColumn(colNameAgg, arr, nil);
+        end;
+  
+        akMin:
+        begin
+          if colsIsInt[c] then
+          begin
+            var arr := new integer[n];
+            for var g := 0 to n - 1 do
+              arr[g] := Round(mins[c][g]);
+            res.AddIntColumn(colNameAgg, arr, nil);
+          end
+          else
+            res.AddFloatColumn(colNameAgg, mins[c], nil);
+        end;
+  
+        akMax:
+        begin
+          if colsIsInt[c] then
+          begin
+            var arr := new integer[n];
+            for var g := 0 to n - 1 do
+              arr[g] := Round(maxs[c][g]);
+            res.AddIntColumn(colNameAgg, arr, nil);
+          end
+          else
+            res.AddFloatColumn(colNameAgg, maxs[c], nil);
+        end;
+      end;
+  
+      // метаданные
+      names.Add(colNameAgg);
+  
+      if kind = akCount then
+        types.Add(ctInt)
+      else if (kind in [akSum, akMin, akMax]) and colsIsInt[c] then
+        types.Add(ctInt)
+      else
+        types.Add(ctFloat);
+  
+      cats.Add(false);
+    end;
+  end;
+
+  // ----------------------------
+  // 9. Schema
+  // ----------------------------
+  res.SetSchema(new DataFrameSchema(
+    names.ToArray,
+    types.ToArray,
+    cats.ToArray
+  ));
+  
+  res.AssertSchemaConsistent;
+  Result := res;
+end;
+
+function GroupByContext.Aggregate(map: Dictionary<string, array of AggregationKind>): DataFrame;
+begin
+  if (map = nil) or (map.Count = 0) then
+    ArgumentError(ER_AGGREGATIONS_EMPTY);
+
+  var first := true;
+  var res: DataFrame := nil;
+
+  foreach var kvp in map do
+  begin
+    var col := kvp.Key;
+    var kinds := kvp.Value;
+
+    var df := Aggregate([col], kinds);
+
+    if first then
+    begin
+      res := df;
+      first := false;
+    end
+    else
+    begin
+      // добавляем только агрегатные колонки (пропускаем ключи)
+      for var ci := 0 to df.ColumnCount - 1 do
+      begin
+        var name := df.columns[ci].Info.Name;
+
+        // ключи пропускаем (они уже есть в res)
+        var exists := false;
+        
+        for var k := 0 to res.ColumnCount - 1 do
+          if res.columns[k].Info.Name = name then
+          begin
+            exists := true;
+            break;
+          end;
+        
+        if not exists then
+        begin
+          var col1 := df.columns[ci];
+        
+          case col1.Info.ColType of
+            ctInt:
+              res.AddIntColumn(name, IntColumn(col1).Data, IntColumn(col1).IsValid);
+            ctFloat:
+              res.AddFloatColumn(name, FloatColumn(col1).Data, FloatColumn(col1).IsValid);
+            ctStr:
+              res.AddStrColumn(name, StrColumn(col1).Data, StrColumn(col1).IsValid);
+            ctBool:
+              res.AddBoolColumn(name, BoolColumn(col1).Data, BoolColumn(col1).IsValid);
+            else
+              Error(ER_UNSUPPORTED_COLUMN_TYPE, col1.Info.ColType);
+          end;
+        end;
+      end;
+    end;
+  end;
+
+  res.AssertSchemaConsistent;
+  Result := res;
+end;
+
+//-----------------------------
+//          Statistics
+//-----------------------------
+
+static function Statistics.Correlation(df: DataFrame; colX, colY: string): real;
+begin
+  var ix := df.ColumnIndex(colX);
+  var iy := df.ColumnIndex(colY);
+
+  var cur := df.GetCursor;
+  var sumX := 0.0;
+  var sumY := 0.0;
+  var cnt := 0;
+
+  // pass 1: mean по пересечению
+  while cur.MoveNext do
+    if cur.IsValid(ix) and cur.IsValid(iy) then
+    begin
+      sumX += cur.Float(ix);
+      sumY += cur.Float(iy);
+      cnt += 1;
+    end;
+
+  if cnt = 0 then
+    Error(ER_NO_VALID_PAIRS);
+
+  var mx := sumX / cnt;
+  var my := sumY / cnt;
+
+  // pass 2: covariance и variance
+  cur := df.GetCursor;
+  var acc := 0.0;
+  var accX := 0.0;
+  var accY := 0.0;
+
+  while cur.MoveNext do
+    if cur.IsValid(ix) and cur.IsValid(iy) then
+    begin
+      var dx := cur.Float(ix) - mx;
+      var dy := cur.Float(iy) - my;
+
+      acc += dx * dy;
+      accX += dx * dx;
+      accY += dy * dy;
+    end;
+
+  if (accX = 0) or (accY = 0) then
+    Error(ER_ZERO_VARIANCE);
+
+  Result := acc / Sqrt(accX * accY);
+end;
+
+static function Statistics.CorrelationMatrix(df: DataFrame): DataFrame;
+begin
+  var names := new List<string>;
+
+  // числовые столбцы
+  for var i := 0 to df.ColumnCount - 1 do
+    if df.GetColumnType(i) in [ColumnType.ctInt, ColumnType.ctFloat] then
+      names.Add(df.fSchema.NameAt(i));
+
+  var n := names.Count;
+  if n = 0 then
+    Error(ER_NO_NUMERIC_COLUMNS);
+
+  var res := new DataFrame;
+
+  var schemaNames := new List<string>;
+  var schemaTypes := new List<ColumnType>;
+  var schemaCats := new List<boolean>;
+
+  // 1️⃣ первый столбец — Feature
+  res.AddStrColumn('Feature', names.ToArray, nil);
+
+  schemaNames.Add('Feature');
+  schemaTypes.Add(ctStr);
+  schemaCats.Add(true); // categorical
+
+  // 2️⃣ корреляции
+  for var j := 0 to n - 1 do
+  begin
+    var data := new real[n];
+
+    for var i := 0 to n - 1 do
+      if i = j then
+        data[i] := 1.0
+      else
+        try
+          data[i] := Correlation(df, names[i], names[j]);
+        except
+          on e: Exception do
+            data[i] := real.NaN;
+        end;
+
+    res.AddFloatColumn(names[j], data, nil);
+
+    schemaNames.Add(names[j]);
+    schemaTypes.Add(ctFloat);
+    schemaCats.Add(false);
+  end;
+
+  // schema
+  res.SetSchema(new DataFrameSchema(
+    schemaNames.ToArray,
+    schemaTypes.ToArray,
+    schemaCats.ToArray
+  ));
+
+  Result := res;
+end;
+
+static function Statistics.Standardize(df: DataFrame; colName: string): DataFrame;
+begin
+  var idx := df.ColumnIndex(colName);
+
+  var (mean, variance) := df.MeanVariance(idx);
+  var std := Sqrt(variance);
+
+  if std = 0 then
+    Error(ER_ZERO_STD_STANDARDIZE);
+
+  Result := df.ReplaceColumnFloat(colName, cur ->
+    (cur.Float(idx) - mean) / std
+  );
+end;
+
+static function Statistics.StandardizeAll(df: DataFrame): DataFrame;
+begin
+  var res := new DataFrame;
+  var oldSchema := df.Schema;
+  
+  var cur := df.GetCursor;
+
+  // 1. заранее считаем mean/std для всех числовых столбцов
+  var means := new real[df.ColumnCount];
+  var stds  := new real[df.ColumnCount];
+  var isNumeric := new boolean[df.ColumnCount];
+
+  for var i := 0 to df.ColumnCount - 1 do
+  begin
+    var t := df.GetColumnType(i);
+    if t in [ColumnType.ctInt, ColumnType.ctFloat] then
+    begin
+      var (mean, variance) := df.MeanVariance(i);
+      means[i] := mean;
+      stds[i] := Sqrt(variance);
+      if stds[i] = 0 then
+        Error(ER_ZERO_STD_COLUMN, df.fSchema.NameAt(i));
+      isNumeric[i] := true;
+    end;
+  end;
+
+  // 2. создаём схему результата
+  for var i := 0 to df.ColumnCount - 1 do
+  begin
+    if isNumeric[i] then
+      res.AddFloatColumn(df.fSchema.NameAt(i), new real[df.RowCount], nil)
+    else
+      res.AddColumnAlias(df.GetColumn(i)); 
+  end;
+
+  // 3. заполняем данные
+  var row := 0;
+  while cur.MoveNext do
+  begin
+    for var i := 0 to df.ColumnCount - 1 do
+    begin
+      if not isNumeric[i] then continue;
+  
+      var col := FloatColumn(res.columns[i]);
+  
+      if cur.IsValid(i) then
+        col.Data[row] := (cur.Float(i) - means[i]) / stds[i]
+      else
+        col.IsValid[row] := False;
+
+    end;
+    row += 1;
+  end;
+  
+  var names := oldSchema.ColumnNames;
+  var cats := oldSchema.CategoricalFlags;
+
+  var types := Copy(oldSchema.Types);
+  for var i := 0 to names.Length - 1 do
+    if isNumeric[i] then
+      types[i] := ctFloat;
+
+  res.SetSchema(new DataFrameSchema(names, types, cats));
+  
+  Result := res;
+end;
+
+static function Statistics.Normalize(df: DataFrame; colName: string): DataFrame;
+begin
+  var idx := df.ColumnIndex(colName);
+  var (mn, mx) := df.MinMax(idx);
+
+  if mn = mx then
+    Error(ER_ZERO_RANGE);
+
+  Result := df.ReplaceColumnFloat(colName, cur ->
+  begin
+    if not cur.IsValid(idx) then
+      Result := real.NaN
+    else
+      Result := (cur.Float(idx) - mn) / (mx - mn);
+  end);
+end;
+
+static function Statistics.NormalizeAll(df: DataFrame): DataFrame;
+begin
+  var res := new DataFrame;
+  var oldSchema := df.Schema;
+  
+  var cur := df.GetCursor;
+
+  // 1. заранее считаем min/max для всех числовых столбцов
+  var mins := new real[df.ColumnCount];
+  var maxs := new real[df.ColumnCount];
+  var isNumeric := new boolean[df.ColumnCount];
+
+  for var i := 0 to df.ColumnCount - 1 do
+  begin
+    var t := df.GetColumnType(i);
+    if t in [ColumnType.ctInt, ColumnType.ctFloat] then
+    begin
+      var (mn, mx) := df.MinMax(i);
+      if mn = mx then
+        Error(ER_ZERO_RANGE_COLUMN, df.fSchema.NameAt(i));
+      mins[i] := mn;
+      maxs[i] := mx;
+      isNumeric[i] := true;
+    end;
+  end;
+
+  // 2. создаём схему результата
+  for var i := 0 to df.ColumnCount - 1 do
+  begin
+    if isNumeric[i] then
+      res.AddFloatColumn(df.fSchema.NameAt(i), new real[df.RowCount], nil)
+    else
+      res.AddColumnAlias(df.GetColumn(i)); 
+  end;
+
+  // 3. заполняем данные
+  var row := 0;
+  while cur.MoveNext do
+  begin
+    for var i := 0 to df.ColumnCount - 1 do
+    begin
+      if not isNumeric[i] then continue;
+
+      var col := FloatColumn(res.columns[i]);
+
+      if cur.IsValid(i) then
+      begin
+        col.Data[row] := (cur.Float(i) - mins[i]) / (maxs[i] - mins[i]);
+        col.IsValid[row] := True;
+      end
+      else
+        // первый NA → создаём IsValid
+        col.IsValid[row] := False;
+    end;
+    row += 1;
+  end;
+  
+  var names := oldSchema.ColumnNames;
+  var cats := oldSchema.CategoricalFlags;
+
+  var types := Copy(oldSchema.Types);
+  for var i := 0 to names.Length - 1 do
+    if isNumeric[i] then
+      types[i] := ctFloat;
+
+  res.SetSchema(new DataFrameSchema(names, types, cats));
+
+  Result := res;
+end;
+
+static function Statistics.Quantile(df: DataFrame; colName: string; p: real): real;
+begin
+  if (p < 0) or (p > 1) then
+    ArgumentError(ER_QUANTILE_P_INVALID);
+
+  var idx := df.ColumnIndex(colName);
+  var values := new List<real>;
+
+  var cur := df.GetCursor;
+  while cur.MoveNext do
+    if cur.IsValid(idx) then
+      values.Add(cur.Float(idx));
+
+  if values.Count = 0 then
+    Error(ER_NO_VALID_VALUES_QUANTILE);
+
+  values.Sort;
+
+  var n := values.Count;
+  if n = 1 then
+  begin
+    Result := values[0];
+    exit;
+  end;
+
+  // позиция квантиля
+  var pos := p * (n - 1);
+  var i := Floor(pos);
+  var frac := pos - i;
+
+  if i + 1 < n then
+    Result := values[i] * (1 - frac) + values[i + 1] * frac
+  else
+    Result := values[i];
+end;
+
+static function Statistics.Median(df: DataFrame; colName: string): real;
+begin
+  Result := Quantile(df, colName, 0.5);
+end;
+
+//-----------------------------
+//          CSVLoader
+//-----------------------------
+
+procedure ScanFieldsQuoted(
+  line: string; delimiter: char;
+  var starts, lens: array of integer;
+  var quoted: array of boolean;
+  var actualCount: integer;
+  var unclosedQuote: boolean);
+begin
+  var n := line.Length;
+  var i := 1;
+  var col := 0;
+
+  var inQuotes := False;
+  var quotedField := False;
+
+  starts[0] := 1;
+  if quoted <> nil then
+    quoted[0] := False;
+
+  while i <= n do
+  begin
+    var ch := line[i];
+
+    if inQuotes then
+    begin
+      // экранированная кавычка ""
+      if (ch = '"') and (i < n) and (line[i+1] = '"') then
+      begin
+        i += 2;
+        continue;
+      end;
+
+      // закрывающая кавычка
+      if ch = '"' then
+      begin
+        inQuotes := False;
+        i += 1;
+        continue;
+      end;
+    end
+    else
+    begin
+      // начало quoted-поля (только если это первый символ поля)
+      if (ch = '"') and (i = starts[col]) then
+      begin
+        inQuotes := True;
+        quotedField := True;
+        if quoted <> nil then
+          quoted[col] := True;
+        starts[col] := i + 1; // значение начинается после "
+        i += 1;
+        continue;
+      end;
+
+      // разделитель вне кавычек
+      if ch = delimiter then
+      begin
+        if quotedField then
+          lens[col] := (i - 1) - starts[col]   // до закрывающей "
+        else
+          lens[col] := i - starts[col];
+
+        col += 1;
+        quotedField := False;
+
+        if col >= starts.Length then
+        begin
+          var newLen := starts.Length;
+          if newLen = 0 then
+            newLen := 1;
+
+          while col >= newLen do
+            newLen *= 2;
+
+          SetLength(starts, newLen);
+          SetLength(lens, newLen);
+          if quoted <> nil then
+            SetLength(quoted, newLen);
+        end;
+
+        starts[col] := i + 1;
+        if quoted <> nil then
+          quoted[col] := False;
+
+        i += 1;
+        continue;
+      end;
+    end;
+
+    i += 1;
+  end;
+
+  // последний столбец
+  if quotedField then
+    lens[col] := i - 1 - starts[col]
+  else
+    lens[col] := i - starts[col];
+
+  // недостающие столбцы → пустые
+  for var k := col + 1 to starts.Length - 1 do
+  begin
+    lens[k] := 0;
+    if quoted <> nil then
+      quoted[k] := False;
+  end;
+
+  actualCount := col + 1;
+  unclosedQuote := inQuotes;
+end;
+
+
+function IsMissingRange(s: string; start, len: integer): boolean;
+begin
+  // empty
+  if len = 0 then
+    exit(True);
+
+  // NA
+  if (len = 2) and
+     (s[start] = 'N') and (s[start+1] = 'A') then
+    exit(True);
+
+  // NaN
+  if (len = 3) and
+     (s[start] = 'N') and (s[start+1] = 'a') and (s[start+2] = 'N') then
+    exit(True);
+
+  // null
+  if (len = 4) and
+     (s[start] = 'n') and (s[start+1] = 'u') and
+     (s[start+2] = 'l') and (s[start+3] = 'l') then
+    exit(True);
+
+  Result := False;
+end;
+
+function TryStrToInt(s: string; start, len: integer; var value: integer): boolean;
+begin
+  Result := False;
+  if len = 0 then exit;
+
+  var j := start;
+  var endp := start + len - 1;
+
+  // leading spaces
+  while (j <= endp) and char.IsWhiteSpace(s[j]) do
+    j += 1;
+  if j > endp then exit;
+
+  // sign
+  var sign := 1;
+  if s[j] = '-' then
+  begin
+    sign := -1;
+    j += 1;
+  end
+  else if s[j] = '+' then
+    j += 1;
+
+  if j > endp then exit;
+
+  // first digit
+  var c := integer(s[j]);
+  if (c < 48) or (c > 57) then exit;
+
+  var res := c - 48;
+  j += 1;
+
+  // remaining digits
+  while j <= endp do
+  begin
+    c := integer(s[j]);
+    if (c < 48) or (c > 57) then break;
+
+    // overflow check: res * 10 + digit <= Int32.MaxValue
+    if res > 214748364 then exit;
+
+    res := res * 10 + (c - 48);
+    j += 1;
+  end;
+
+  // trailing spaces
+  while (j <= endp) and char.IsWhiteSpace(s[j]) do
+    j += 1;
+  if j <= endp then exit;
+
+  if sign = -1 then
+    res := -res;
+
+  value := res;
+  Result := True;
+end;
+
+function TryStrToReal(s: string; start, len: integer; var value: real): boolean;
+begin
+  Result := False;
+  if len = 0 then exit;
+
+  var j := start;
+  var endp := start + len - 1;
+
+  // leading spaces
+  while (j <= endp) and char.IsWhiteSpace(s[j]) do
+    j += 1;
+  if j > endp then exit;
+
+  // sign
+  var sign := 1.0;
+  if s[j] = '-' then
+  begin
+    sign := -1.0;
+    j += 1;
+  end
+  else if s[j] = '+' then
+    j += 1;
+  if j > endp then exit;
+
+  // integer part
+  var intPart := 0.0;
+  var hasDigits := False;
+  while j <= endp do
+  begin
+    var c := integer(s[j]);
+    if (c < 48) or (c > 57) then break;
+    hasDigits := True;
+    intPart := intPart * 10.0 + (c - 48);
+    j += 1;
+  end;
+
+  // fractional part
+  var fracPart := 0.0;
+  var scale := 1.0;
+  if (j <= endp) and (s[j] = '.') then
+  begin
+    j += 1;
+    while j <= endp do
+    begin
+      var c := integer(s[j]);
+      if (c < 48) or (c > 57) then break;
+      hasDigits := True;
+      scale *= 0.1;
+      fracPart += (c - 48) * scale;
+      j += 1;
+    end;
+  end;
+
+  if not hasDigits then exit;
+
+  var res := intPart + fracPart;
+
+  // exponent
+  if (j <= endp) and ((s[j] = 'e') or (s[j] = 'E')) then
+  begin
+    j += 1;
+    if j > endp then exit;
+
+    var expSign := 1;
+    if s[j] = '-' then
+    begin
+      expSign := -1;
+      j += 1;
+    end
+    else if s[j] = '+' then
+      j += 1;
+    if j > endp then exit;
+
+    var exp := 0;
+    var hasExp := False;
+    while j <= endp do
+    begin
+      var c := integer(s[j]);
+      if (c < 48) or (c > 57) then break;
+      hasExp := True;
+      exp := exp * 10 + (c - 48);
+      j += 1;
+    end;
+    if not hasExp then exit;
+
+    res := res * Power(10.0, expSign * exp);
+  end;
+
+  // trailing spaces
+  while (j <= endp) and char.IsWhiteSpace(s[j]) do
+    j += 1;
+  if j <= endp then exit;
+
+  value := sign * res;
+  Result := True;
+end;
+
+function TryStrToBoolStrictRange(s: string; start, len: integer; var value: boolean): boolean;
+begin
+  Result := False;
+  if len = 0 then exit;
+
+  var j := start;
+  var endp := start + len - 1;
+
+  // leading spaces
+  while (j <= endp) and char.IsWhiteSpace(s[j]) do
+    j += 1;
+  if j > endp then exit;
+
+  var rem := endp - j + 1;
+
+  // true
+  if (rem = 4) and (s[j] = 't') and (s[j+1] = 'r') and (s[j+2] = 'u') and (s[j+3] = 'e') then
+  begin value := True; exit(True) end;
+
+  // True
+  if (rem = 4) and (s[j] = 'T') and (s[j+1] = 'r') and (s[j+2] = 'u') and (s[j+3] = 'e') then
+  begin value := True; exit(True) end;
+
+  // yes
+  if (rem = 3) and (s[j] = 'y') and (s[j+1] = 'e') and (s[j+2] = 's') then
+  begin value := True; exit(True) end;
+
+  // false
+  if (rem = 5) and (s[j] = 'f') and (s[j+1] = 'a') and
+     (s[j+2] = 'l') and (s[j+3] = 's') and (s[j+4] = 'e') then
+  begin value := False; exit(True) end;
+
+  // False
+  if (rem = 5) and (s[j] = 'F') and (s[j+1] = 'a') and
+     (s[j+2] = 'l') and (s[j+3] = 's') and (s[j+4] = 'e') then
+  begin value := False; exit(True) end;
+
+  // no
+  if (rem = 2) and (s[j] = 'n') and (s[j+1] = 'o') then
+  begin value := False; exit(True) end;
+
+  // No
+  if (rem = 2) and (s[j] = 'N') and (s[j+1] = 'o') then
+  begin value := False; exit(True) end;
+end;
+
+function TryStrToDateTime(s: string; var value: System.DateTime): boolean;
+begin
+  var t := s;
+  if t <> nil then
+    t := t.Trim;
+
+  if (t = nil) or (t = '') then
+    exit(False);
+
+  var ru := CultureInfo.GetCultureInfo('ru-RU');
+
+  var formats := [
+    'yyyy-MM-dd',
+    'yyyy-MM-dd HH:mm:ss',
+    'yyyy-MM-dd HH:mm',
+    'yyyy-MM-ddTHH:mm:ss',
+    'yyyy-MM-ddTHH:mm',
+    'yyyy-MM-ddTHH:mm:ss.FFF',
+    'yyyy-MM-ddTHH:mm:ss.fffffff',
+    'dd.MM.yyyy',
+    'dd.MM.yyyy HH:mm:ss',
+    'dd.MM.yyyy HH:mm',
+    's',
+    'o'
+  ];
+
+  Result := System.DateTime.TryParseExact(
+    t,
+    formats,
+    CultureInfo.InvariantCulture,
+    DateTimeStyles.None,
+    value
+  );
+
+  if Result then
+    exit;
+
+  Result := System.DateTime.TryParseExact(
+    t,
+    formats,
+    ru,
+    DateTimeStyles.None,
+    value
+  );
+
+  if Result then
+    exit;
+
+  Result := System.DateTime.TryParse(
+    t,
+    CultureInfo.InvariantCulture,
+    DateTimeStyles.None,
+    value
+  );
+
+  if Result then
+    exit;
+
+  Result := System.DateTime.TryParse(
+    t,
+    ru,
+    DateTimeStyles.None,
+    value
+  );
+end;
+
+function TryStrToBoolStrict(s: string; var value: boolean): boolean;
+begin
+  if s = nil then
+    exit(False);
+  Result := TryStrToBoolStrictRange(s, 1, s.Length, value);
+end;
+
+function IsBlankRow(row: array of string): boolean;
+begin
+  if row = nil then
+    exit(True);
+
+  foreach var s in row do
+    if (s <> nil) and (s.Trim <> '') then
+      exit(False);
+
+  Result := True;
+end;
+
+function IsBlankStringArray(row: StringArray): boolean;
+begin
+  Result := IsBlankRow(row);
+end;
+
+function CollectSelectorValues(df: DataFrame; selector: DataFrameCursor -> DataValue): List<real>;
+begin
+  if selector = nil then
+    ArgumentNullError('selector');
+
+  Result := new List<real>;
+
+  var cursor := df.GetCursor;
+  while cursor.MoveNext do
+  begin
+    var v := selector(cursor);
+    if (not System.Object.ReferenceEquals(v, nil)) and v.IsValid then
+      Result.Add(v.Float);
+  end;
+end;
+
+function IsIntegralReal(x: real): boolean;
+begin
+  Result := Abs(x - Round(x)) < 1e-9;
+end;
+
+function BuildRowSignature(df: DataFrame; rowIndex: integer): string;
+begin
+  var sb := new StringBuilder;
+  var schema := df.Schema;
+  var cur := df.GetCursor;
+  cur.MoveTo(rowIndex);
+
+  for var i := 0 to schema.ColumnCount - 1 do
+  begin
+    sb.Append('|');
+
+    if not cur.IsValid(i) then
+    begin
+      sb.Append('NA');
+      continue;
+    end;
+
+    case schema.ColumnTypeAt(i) of
+      ctInt:
+        sb.Append('I:').Append(cur.Int(i));
+      ctFloat:
+        sb.Append('F:').Append(cur.Float(i).ToString('R', CultureInfo.InvariantCulture));
+      ctStr:
+      begin
+        var s := cur.Str(i);
+        if s = nil then
+          s := '';
+        sb.Append('S:').Append(s.Length).Append(':').Append(s);
+      end;
+      ctBool:
+        sb.Append('B:').Append(if cur.Bool(i) then '1' else '0');
+      ctDateTime:
+        sb.Append('D:').Append(cur.DateTime(i).Ticks);
+    else
+      Error(ER_UNKNOWN_COLUMN_TYPE);
+    end;
+  end;
+
+  Result := sb.ToString;
+end;
+
+function ParseCsvField(raw: string; wasQuoted: boolean := false): string;
+begin
+  Result := raw;
+  if Result = nil then
+    exit;
+
+  if wasQuoted then
+    Result := Result.Replace('""', '"');
+end;
+
+function ParseCsvLine(line: string; delimiter: char; strict: boolean): array of string;
+begin
+  var tmpStarts := new integer[64];
+  var tmpLens := new integer[64];
+  var tmpQuoted := new boolean[64];
+  var actualCount: integer;
+  var unclosedQuote: boolean;
+
+  ScanFieldsQuoted(line, delimiter, tmpStarts, tmpLens, tmpQuoted, actualCount, unclosedQuote);
+
+  if unclosedQuote and strict then
+    Error(ER_CSV_UNCLOSED_QUOTE);
+
+  Result := new string[actualCount];
+
+  for var j := 0 to actualCount - 1 do
+  begin
+    var s := line.Substring(tmpStarts[j] - 1, tmpLens[j]);
+    Result[j] := ParseCsvField(s, tmpQuoted[j]);
+  end;
+end;
+
+function ParseCsvLinesToRows(lines: sequence of string; delimiter: char; strict: boolean): array of StringArray;
+begin
+  var raw := lines.ToArray;
+  Result := new StringArray[raw.Length];
+
+  for var i := 0 to raw.Length - 1 do
+    Result[i] := ParseCsvLine(raw[i], delimiter, strict);
+end;
+
+function GetXmlAttr(node: XmlNode; localName: string): string;
+begin
+  if (node = nil) or (node.Attributes = nil) then
+    exit(nil);
+
+  for var i := 0 to node.Attributes.Count - 1 do
+  begin
+    var attr := node.Attributes[i];
+    if (attr.LocalName = localName) or (attr.Name = localName) then
+      exit(attr.Value);
+  end;
+
+  Result := nil;
+end;
+
+function GetRepeatedCount(node: XmlNode; localName: string): integer;
+begin
+  Result := 1;
+  var s := GetXmlAttr(node, localName);
+  if (s = nil) or (s = '') then
+    exit;
+
+  var n: integer;
+  if System.Int32.TryParse(s, n) and (n > 0) then
+    Result := n;
+end;
+
+function OdsCellValue(cell: XmlNode): string;
+begin
+  if cell.LocalName = 'covered-table-cell' then
+    exit('');
+
+  var textValue := cell.InnerText;
+  var valueType := GetXmlAttr(cell, 'value-type');
+
+  if valueType = 'boolean' then
+  begin
+    Result := GetXmlAttr(cell, 'boolean-value');
+    if (Result = nil) or (Result = '') then
+      Result := textValue;
+    if Result <> nil then
+      Result := Result.ToLower;
+    exit;
+  end;
+
+  if (valueType = 'float') or (valueType = 'currency') or (valueType = 'percentage') then
+  begin
+    Result := GetXmlAttr(cell, 'value');
+    if (Result = nil) or (Result = '') then
+      Result := textValue;
+    exit;
+  end;
+
+  if valueType = 'date' then
+  begin
+    Result := GetXmlAttr(cell, 'date-value');
+    if (Result = nil) or (Result = '') then
+      Result := textValue;
+    exit;
+  end;
+
+  if valueType = 'time' then
+  begin
+    Result := GetXmlAttr(cell, 'time-value');
+    if (Result = nil) or (Result = '') then
+      Result := textValue;
+    exit;
+  end;
+
+  Result := GetXmlAttr(cell, 'string-value');
+  if (Result = nil) or (Result = '') then
+    Result := textValue;
+  if Result = nil then
+    Result := '';
+end;
+
+function FindOdsTableNode(doc: XmlDocument; sheet: string): XmlNode;
+begin
+  Result := nil;
+  var firstTable: XmlNode := nil;
+
+  var nodes := doc.GetElementsByTagName('*');
+  for var i := 0 to nodes.Count - 1 do
+  begin
+    var node := nodes[i];
+    if node.LocalName <> 'table' then
+      continue;
+
+    if firstTable = nil then
+      firstTable := node;
+
+    var name := GetXmlAttr(node, 'name');
+    if (sheet <> nil) and (sheet <> '') and (name = sheet) then
+    begin
+      Result := node;
+      exit;
+    end;
+  end;
+
+  if firstTable = nil then
+    Error(ER_ODS_NO_SHEETS);
+
+  if (sheet = nil) or (sheet = '') then
+    Result := firstTable
+  else
+    Error(ER_ODS_SHEET_NOT_FOUND, sheet);
+end;
+
+static function ODSReader.ReadSheet(filename: string; sheet: string): array of StringArray;
+begin
+  if (filename = nil) or (filename.Trim = '') then
+    ArgumentError(ER_ODS_FILENAME_EMPTY);
+
+  var fs := new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+  try
+    var zip := new ZipArchive(fs, ZipArchiveMode.Read);
+    try
+      var entry := zip.GetEntry('content.xml');
+      if entry = nil then
+        Error(ER_ODS_CONTENT_XML_NOT_FOUND);
+
+      var doc := new XmlDocument;
+      var stream := entry.Open;
+      try
+        doc.Load(stream);
+      finally
+        stream.Close;
+      end;
+
+      var tableNode := FindOdsTableNode(doc, sheet);
+      var rowsList := new List<StringArray>;
+      var pendingBlankRows := 0;
+
+      foreach var rowNodeObj in tableNode.ChildNodes do
+      begin
+        var rowNode := XmlNode(rowNodeObj);
+        if rowNode.LocalName <> 'table-row' then
+          continue;
+
+        var rowCells := new List<string>;
+        var pendingEmptyCells := 0;
+
+        foreach var cellNodeObj in rowNode.ChildNodes do
+        begin
+          var cellNode := XmlNode(cellNodeObj);
+          if (cellNode.LocalName <> 'table-cell') and (cellNode.LocalName <> 'covered-table-cell') then
+            continue;
+
+          var repeatCols := GetRepeatedCount(cellNode, 'number-columns-repeated');
+          var cellValue := OdsCellValue(cellNode);
+
+          if cellValue = '' then
+            pendingEmptyCells += repeatCols
+          else
+          begin
+            for var k := 1 to pendingEmptyCells do
+              rowCells.Add('');
+            pendingEmptyCells := 0;
+
+            for var k := 1 to repeatCols do
+              rowCells.Add(cellValue);
+          end;
+        end;
+
+        var repeatRows := GetRepeatedCount(rowNode, 'number-rows-repeated');
+        var rowArray := rowCells.ToArray;
+
+        if IsBlankStringArray(rowArray) then
+          pendingBlankRows += repeatRows
+        else
+        begin
+          for var k := 1 to pendingBlankRows do
+            rowsList.Add(new string[0]);
+          pendingBlankRows := 0;
+
+          for var k := 1 to repeatRows do
+            rowsList.Add(Copy(rowArray));
+        end;
+      end;
+
+      Result := rowsList.ToArray;
+    finally
+      zip.Dispose;
+    end;
+  finally
+    fs.Close;
+  end;
+end;
+
+function LoadFromRows(
+  rows: array of StringArray;
+  hasHeader: boolean;
+  missingValues: array of string;
+  trimWhitespace: boolean;
+  strict: boolean;
+  schema: Dictionary<string, ColumnType>;
+  sampleSize: integer;
+  ignoreColumns: array of string;
+  inferTypes: boolean;
+  forceStringColumns: array of string;
+  categoricalColumns: array of string;
+  inferCategorical: boolean;
+  maxCategoricalCardinality: integer;
+  maxCategoricalRatio: real;
+  idThreshold: real;
+  minFrequency: integer
+): DataFrame;
+begin
+  var missing := if missingValues = nil then
+    new HashSet<string>(Arr('', 'NA', 'NaN', 'null'))
+  else
+    new HashSet<string>(missingValues);
+
+  var l := 0;
+  while (l < rows.Length) and IsBlankRow(rows[l]) do
+    l += 1;
+
+  var r := rows.Length;
+  while (r > l) and IsBlankRow(rows[r - 1]) do
+    r -= 1;
+
+  var rowsArray := rows[l:r];
+
+  var headers: array of string := nil;
+  var originalColCount := 0;
+  var rowCount := rowsArray.Length;
+  if hasHeader then
+    rowCount -= 1;
+
+  var canBool, canInt, canFloat, canDateTime: array of boolean;
+  (canBool, canInt, canFloat, canDateTime) := (nil, nil, nil, nil);
+
+  var inferLimit := sampleSize;
+  if inferLimit <= 0 then
+    inferLimit := integer.MaxValue;
+
+  var ignoreSet := if ignoreColumns = nil then nil else new HashSet<string>(ignoreColumns);
+  var forceStrSet := if forceStringColumns = nil then nil else new HashSet<string>(forceStringColumns);
+  var catSet := if categoricalColumns = nil then nil else new HashSet<string>(categoricalColumns);
+
+  var map: array of integer := nil;
+  var newColCount := 0;
+
+  var uniqueSet: array of HashSet<string> := nil;
+  var freqMap: array of Dictionary<string, integer> := nil;
+  var nonMissingCount: array of integer := nil;
+  var autoCat: array of boolean := nil;
+
+  var first := true;
+
+  foreach var currentRaw in rowsArray index inferRead do
+  begin
+    if inferRead >= inferLimit then break;
+
+    var current := if currentRaw = nil then new string[0] else currentRaw;
+
+    if first then
+    begin
+      if hasHeader then
+      begin
+        headers := Copy(current);
+        if trimWhitespace then
+          for var j := 0 to headers.Length - 1 do
+            if headers[j] <> nil then
+              headers[j] := headers[j].Trim;
+        originalColCount := headers.Length;
+      end
+      else
+      begin
+        originalColCount := current.Length;
+        headers := ArrGen(originalColCount, i -> 'C' + i.ToString);
+        first := false;
+      end;
+
+      map := new integer[originalColCount];
+      var idx := 0;
+      for var j := 0 to originalColCount - 1 do
+        if (ignoreSet <> nil) and (headers[j] in ignoreSet) then
+          map[j] := -1
+        else
+        begin
+          map[j] := idx;
+          idx += 1;
+        end;
+
+      newColCount := idx;
+
+      var newHeaders := new string[newColCount];
+      for var j := 0 to originalColCount - 1 do
+        if map[j] <> -1 then
+          newHeaders[map[j]] := headers[j];
+
+      headers := newHeaders;
+
+      canBool := new boolean[newColCount];
+      canInt := new boolean[newColCount];
+      canFloat := new boolean[newColCount];
+      canDateTime := new boolean[newColCount];
+
+      for var j := 0 to newColCount - 1 do
+      begin
+        canBool[j] := inferTypes;
+        canInt[j] := inferTypes;
+        canFloat[j] := inferTypes;
+        canDateTime[j] := inferTypes;
+      end;
+
+      uniqueSet := new HashSet<string>[newColCount];
+      freqMap := new Dictionary<string, integer>[newColCount];
+      nonMissingCount := new integer[newColCount];
+      autoCat := new boolean[newColCount];
+
+      for var j := 0 to newColCount - 1 do
+      begin
+        uniqueSet[j] := new HashSet<string>;
+        freqMap[j] := new Dictionary<string, integer>;
+        nonMissingCount[j] := 0;
+        autoCat[j] := false;
+      end;
+
+      for var j := 0 to newColCount - 1 do
+      begin
+        var name := headers[j];
+
+        if (schema <> nil) and schema.ContainsKey(name) then
+        begin
+          canBool[j] := false;
+          canInt[j] := false;
+          canFloat[j] := false;
+          canDateTime[j] := false;
+
+          case schema[name] of
+            ctBool: canBool[j] := true;
+            ctInt: canInt[j] := true;
+            ctFloat: canFloat[j] := true;
+            ctDateTime: canDateTime[j] := true;
+            ctStr: ;
+          end;
+
+          continue;
+        end;
+
+        if (forceStrSet <> nil) and (name in forceStrSet) then
+        begin
+          canBool[j] := false;
+          canInt[j] := false;
+          canFloat[j] := false;
+          canDateTime[j] := false;
+          continue;
+        end;
+
+        if (catSet <> nil) and (name in catSet) then
+        begin
+          canBool[j] := false;
+          canInt[j] := false;
+          canFloat[j] := false;
+          canDateTime[j] := false;
+          continue;
+        end;
+      end;
+
+      if headers = nil then
+        Error(ER_EMPTY_CSV);
+
+      if hasHeader then
+      begin
+        first := false;
+        continue;
+      end;
+
+      first := false;
+    end;
+
+    if (current.Length <> originalColCount) and strict then
+      Error(ER_CSV_COLUMN_COUNT_MISMATCH, originalColCount, current.Length);
+
+    for var j := 0 to originalColCount - 1 do
+    begin
+      var nj := map[j];
+      if nj = -1 then continue;
+
+      var s := if j < current.Length then current[j] else '';
+      if s = nil then
+        s := '';
+      if trimWhitespace then
+        s := s.Trim;
+      if s in missing then continue;
+
+      nonMissingCount[nj] += 1;
+
+      var name := headers[nj];
+
+      if inferCategorical then
+      begin
+        if uniqueSet[nj].Count <= maxCategoricalCardinality * 2 then
+        begin
+          uniqueSet[nj].Add(s);
+          if freqMap[nj].ContainsKey(s) then
+            freqMap[nj][s] += 1
+          else
+            freqMap[nj][s] := 1;
+        end;
+      end;
+
+      if not inferTypes then continue;
+      if (schema <> nil) and schema.ContainsKey(name) then continue;
+      if (forceStrSet <> nil) and (name in forceStrSet) then continue;
+      if (catSet <> nil) and (name in catSet) then continue;
+
+      var sl := s;
+
+      if not ((sl = 'true') or (sl = 'false') or (sl = 'True') or (sl = 'False') or
+              (sl = 'yes') or (sl = 'no') or (sl = 'Yes') or (sl = 'No')) then
+        canBool[nj] := false;
+
+      var iv: integer;
+      if not TryStrToInt(s, iv) then
+        canInt[nj] := false;
+
+      var fv: real;
+      if not TryStrToReal(s, fv) then
+        canFloat[nj] := false;
+
+      var dtv: System.DateTime;
+      if not TryStrToDateTime(s, dtv) then
+        canDateTime[nj] := false;
+    end;
+  end;
+
+  if headers = nil then
+    Error(ER_EMPTY_CSV);
+
+  if inferCategorical then
+    for var j := 0 to newColCount - 1 do
+    begin
+      var name := headers[j];
+
+      if (schema <> nil) and schema.ContainsKey(name) then continue;
+      if (forceStrSet <> nil) and (name in forceStrSet) then continue;
+      if (catSet <> nil) and (name in catSet) then continue;
+
+      if canBool[j] or canInt[j] or canFloat[j] or canDateTime[j] then continue;
+
+      var uc := uniqueSet[j].Count;
+      if uc = 0 then continue;
+
+      var n := nonMissingCount[j];
+      if n = 0 then continue;
+
+      var ratio := uc / n;
+
+      var maxFreq := 0;
+      foreach var kv in freqMap[j] do
+        if kv.Value > maxFreq then
+          maxFreq := kv.Value;
+
+      var isLowCardinality := uc <= maxCategoricalCardinality;
+      var isReasonableRatio := ratio <= maxCategoricalRatio;
+
+      if isLowCardinality and
+         (isReasonableRatio or (uc <= 100)) and
+         (ratio < idThreshold) and
+         (maxFreq >= minFrequency) then
+        autoCat[j] := true;
+    end;
+
+  var df := new DataFrame;
+
+  var intData := new IntArray[newColCount];
+  var floatData := new RealArray[newColCount];
+  var strData := new StringArray[newColCount];
+  var boolData := new BoolArray[newColCount];
+  var dtData := new DateTimeArray[newColCount];
+  var valid := new BoolArray[newColCount];
+
+  for var j := 0 to newColCount - 1 do
+  begin
+    valid[j] := new boolean[rowCount];
+
+    if canBool[j] then
+      boolData[j] := new boolean[rowCount]
+    else if canInt[j] then
+      intData[j] := new integer[rowCount]
+    else if canFloat[j] then
+      floatData[j] := new real[rowCount]
+    else if canDateTime[j] then
+      dtData[j] := new System.DateTime[rowCount]
+    else
+      strData[j] := new string[rowCount];
+  end;
+
+  var row := 0;
+  first := true;
+  foreach var currentRaw in rowsArray do
+  begin
+    var current := if currentRaw = nil then new string[0] else currentRaw;
+
+    if first then
+    begin
+      first := false;
+      if hasHeader then continue;
+    end;
+
+    if (current.Length <> originalColCount) and strict then
+      Error(ER_CSV_COLUMN_COUNT_MISMATCH, originalColCount, current.Length);
+
+    for var j := 0 to originalColCount - 1 do
+    begin
+      var nj := map[j];
+      if nj = -1 then continue;
+
+      var s := if j < current.Length then current[j] else '';
+      if s = nil then
+        s := '';
+      if trimWhitespace then
+        s := s.Trim;
+
+      if s in missing then
+      begin
+        valid[nj][row] := false;
+        continue;
+      end;
+
+      if canBool[nj] then
+      begin
+        var bv: boolean;
+        if TryStrToBoolStrict(s, bv) then
+        begin
+          boolData[nj][row] := bv;
+          valid[nj][row] := true;
+        end
+        else
+        begin
+          if strict then
+            Error(ER_CSV_INVALID_BOOL, s, headers[nj]);
+          valid[nj][row] := false;
+        end;
+      end
+      else if canInt[nj] then
+      begin
+        var iv: integer;
+        if TryStrToInt(s, iv) then
+        begin
+          intData[nj][row] := iv;
+          valid[nj][row] := true;
+        end
+        else
+        begin
+          if strict then
+            raise new Exception($'Invalid int "{s}" in column {headers[nj]}');
+          valid[nj][row] := false;
+        end;
+      end
+      else if canFloat[nj] then
+      begin
+        var fv: real;
+        if TryStrToReal(s, fv) then
+        begin
+          floatData[nj][row] := fv;
+          valid[nj][row] := true;
+        end
+        else
+        begin
+          if strict then
+            raise new Exception($'Invalid float "{s}" in column {headers[nj]}');
+          valid[nj][row] := false;
+        end;
+      end
+      else if canDateTime[nj] then
+      begin
+        var dtv: System.DateTime;
+        if TryStrToDateTime(s, dtv) then
+        begin
+          dtData[nj][row] := dtv;
+          valid[nj][row] := true;
+        end
+        else
+        begin
+          if strict then
+            raise new Exception($'Invalid DateTime "{s}" in column {headers[nj]}');
+          valid[nj][row] := false;
+        end;
+      end
+      else
+      begin
+        strData[nj][row] := s;
+        valid[nj][row] := true;
+      end;
+    end;
+
+    row += 1;
+  end;
+
+  for var j := 0 to newColCount - 1 do
+  begin
+    if canBool[j] then
+      df.AddBoolColumn(headers[j], boolData[j], valid[j])
+    else if canInt[j] then
+      df.AddIntColumn(headers[j], intData[j], valid[j])
+    else if canFloat[j] then
+      df.AddFloatColumn(headers[j], floatData[j], valid[j])
+    else if canDateTime[j] then
+      df.AddDateTimeColumn(headers[j], dtData[j], valid[j])
+    else
+      df.AddStrColumn(headers[j], strData[j], valid[j]);
+  end;
+
+  var names := new string[newColCount];
+  var types := new ColumnType[newColCount];
+  var cats := new boolean[newColCount];
+
+  for var j := 0 to newColCount - 1 do
+  begin
+    names[j] := headers[j];
+
+    if canBool[j] then
+      types[j] := ctBool
+    else if canInt[j] then
+      types[j] := ctInt
+    else if canFloat[j] then
+      types[j] := ctFloat
+    else if canDateTime[j] then
+      types[j] := ctDateTime
+    else
+      types[j] := ctStr;
+
+    cats[j] := ((catSet <> nil) and (headers[j] in catSet)) or autoCat[j];
+  end;
+
+  df.SetSchema(new DataFrameSchema(names, types, cats));
+
+  Result := df;
+end;
+
+
+static function CSVLoader.LoadFromLines(
+  lines: sequence of string; 
+  delimiter: char; 
+  hasHeader: boolean; 
+  missingValues: array of string; 
+  trimWhitespace: boolean; 
+  strict: boolean; 
+  columnTypes: Dictionary<string, ColumnType>; 
+  sampleSize: integer;
+  ignoreColumns: array of string;
+  inferTypes: boolean;
+  forceStringColumns: array of string;
+  categoricalColumns: array of string;
+  inferCategorical: boolean;
+  maxCategoricalCardinality: integer;
+  maxCategoricalRatio: real;
+  idThreshold: real;
+  minFrequency: integer
+): DataFrame;
+begin
+  var missing := if missingValues = nil then
+    new HashSet<string>(Arr('', 'NA', 'NaN', 'null'))
+  else
+    new HashSet<string>(missingValues);
+
+  var raw := lines.ToArray;
+  
+  var l := 0;
+  while (l < raw.Length) and (raw[l].Trim = '') do
+    l += 1;
+  
+  var r := raw.Length;
+  while (r > l) and (raw[r-1].Trim = '') do
+    r -= 1;
+  
+  var linesArray := raw[l:r];
+
+  if linesArray.Length = 0 then
+    Error(ER_EMPTY_CSV);
+  
+  var headers: array of string := nil;
+  var originalColCount := 0;
+  var rowCount := linesArray.Count;
+  if hasHeader then
+    rowCount -= 1;
+  
+  var canBool, canInt, canFloat, canDateTime: array of boolean;
+  (canBool, canInt, canFloat, canDateTime) := (nil, nil, nil, nil);
+  
+  var inferLimit := sampleSize;
+  if inferLimit <= 0 then
+    inferLimit := integer.MaxValue;
+
+  var ignoreSet := if ignoreColumns = nil then nil else new HashSet<string>(ignoreColumns);
+  var forceStrSet := if forceStringColumns = nil then nil else new HashSet<string>(forceStringColumns);
+  var catSet := if categoricalColumns = nil then nil else new HashSet<string>(categoricalColumns);
+
+  var map: array of integer := nil;
+  var newColCount := 0;
+  
+  var uniqueSet: array of HashSet<string> := nil;
+  var freqMap: array of Dictionary<string, integer> := nil;
+  var nonMissingCount: array of integer := nil;
+  var autoCat: array of boolean := nil;
+
+  var first := true;
+  
+  var tmpStarts := new integer[64];
+  var tmpLens := new integer[64];
+  var tmpQuoted := new boolean[64];
+  var actualCount: integer;
+  var unclosedQuote: boolean;
+  
+  ScanFieldsQuoted(linesArray[0], delimiter, tmpStarts, tmpLens, tmpQuoted, actualCount, unclosedQuote);
+  
+  if unclosedQuote then
+    if strict then
+      Error(ER_CSV_UNCLOSED_QUOTE);
+  
+  var starts := tmpStarts;
+  var lens := tmpLens;
+  var quoted := tmpQuoted;
+  
+  foreach var line in linesArray index inferRead do
+  begin
+    if inferRead >= inferLimit then break;
+    
+    if first then
+    begin
+      ScanFieldsQuoted(line, delimiter, starts, lens, quoted, actualCount, unclosedQuote);
+
+      if unclosedQuote then
+        if strict then
+          Error(ER_CSV_UNCLOSED_QUOTE);
+      
+      var parts := new string[actualCount];
+      
+      for var j := 0 to actualCount - 1 do
+      begin
+        var s := line.Substring(starts[j] - 1, lens[j]);
+      
+        if (s.Length >= 2) and (s[1] = '"') and (s[s.Length] = '"') then
+          s := s.Substring(1, s.Length - 2);
+      
+        if trimWhitespace then
+          s := s.Trim;
+      
+        parts[j] := s;
+      end;
+  
+      if hasHeader then
+      begin
+        headers := parts;
+        originalColCount := headers.Length;
+      end
+      else
+      begin
+        originalColCount := parts.Length;
+        headers := ArrGen(originalColCount, i -> 'C' + i.ToString);
+      end;
+  
+      map := new integer[originalColCount];
+      var idx := 0;
+      for var j := 0 to originalColCount - 1 do
+        if (ignoreSet <> nil) and (headers[j] in ignoreSet) then
+          map[j] := -1
+        else
+        begin
+          map[j] := idx;
+          idx += 1;
+        end;
+      
+      newColCount := idx;
+      
+      var newHeaders := new string[newColCount];
+      for var j := 0 to originalColCount - 1 do
+        if map[j] <> -1 then
+          newHeaders[map[j]] := headers[j];
+      
+      headers := newHeaders;
+      
+      canBool  := new boolean[newColCount];
+      canInt   := new boolean[newColCount];
+      canFloat := new boolean[newColCount];
+      canDateTime := new boolean[newColCount];
+      
+      for var j := 0 to newColCount - 1 do
+      begin
+        canBool[j] := inferTypes;
+        canInt[j] := inferTypes;
+        canFloat[j] := inferTypes;
+        canDateTime[j] := inferTypes;
+      end;
+      
+      uniqueSet := new HashSet<string>[newColCount];
+      freqMap := new Dictionary<string, integer>[newColCount];
+      nonMissingCount := new integer[newColCount];
+      autoCat := new boolean[newColCount];
+      
+      for var j := 0 to newColCount - 1 do
+      begin
+        uniqueSet[j] := new HashSet<string>;
+        freqMap[j] := new Dictionary<string, integer>;
+        nonMissingCount[j] := 0;
+        autoCat[j] := false;
+      end;
+  
+      for var j := 0 to newColCount - 1 do
+      begin
+        var name := headers[j];
+        
+        if (columnTypes <> nil) and columnTypes.ContainsKey(name) then
+        begin
+          canBool[j] := false;
+          canInt[j] := false;
+          canFloat[j] := false;
+          canDateTime[j] := false;
+          
+          case columnTypes[name] of
+            ctBool:  canBool[j] := true;
+            ctInt:   canInt[j] := true;
+            ctFloat: canFloat[j] := true;
+            ctDateTime: canDateTime[j] := true;
+            ctStr:   ;
+          end;
+          
+          continue;
+        end;
+        
+        if (forceStrSet <> nil) and (name in forceStrSet) then
+        begin
+          canBool[j] := false;
+          canInt[j] := false;
+          canFloat[j] := false;
+          canDateTime[j] := false;
+          continue;
+        end;
+        
+        if (catSet <> nil) and (name in catSet) then
+        begin
+          canBool[j] := false;
+          canInt[j] := false;
+          canFloat[j] := false;
+          canDateTime[j] := false;
+          continue;
+        end;
+      end;
+  
+      first := false;
+      if hasHeader then continue;
+    end;
+  
+    ScanFieldsQuoted(line, delimiter, starts, lens, quoted, actualCount, unclosedQuote);
+
+    if unclosedQuote then
+      if strict then
+        Error(ER_CSV_UNCLOSED_QUOTE);
+    
+    var parts := new string[actualCount];
+    
+    for var j := 0 to actualCount - 1 do
+    begin
+      var s := line.Substring(starts[j]-1, lens[j]);
+    
+      if (s.Length >= 2) and (s[1] = '"') and (s[s.Length] = '"') then
+        s := s.Substring(1, s.Length - 2);
+    
+      if trimWhitespace then
+        s := s.Trim;
+      parts[j] := s;
+    end;
+  
+    if parts.Length <> originalColCount then
+      if strict then
+        Error(ER_CSV_COLUMN_COUNT_MISMATCH, originalColCount, parts.Length);
+  
+    for var j := 0 to originalColCount - 1 do
+    begin
+      var nj := map[j];
+      if nj = -1 then continue;
+      
+      var s := if j < parts.Length then parts[j] else '';
+      if trimWhitespace then
+        s := s.Trim;
+      if s in missing then continue;
+      
+      nonMissingCount[nj] += 1;
+  
+      var name := headers[nj];
+      
+      if inferCategorical then
+      begin
+        if uniqueSet[nj].Count <= maxCategoricalCardinality * 2 then
+        begin
+          uniqueSet[nj].Add(s);
+          if freqMap[nj].ContainsKey(s) then
+            freqMap[nj][s] += 1
+          else
+            freqMap[nj][s] := 1;
+        end;
+      end;
+      
+      if not inferTypes then continue;
+      
+      if (columnTypes <> nil) and columnTypes.ContainsKey(name) then
+        continue;
+      
+      if (forceStrSet <> nil) and (name in forceStrSet) then
+        continue;
+      
+      if (catSet <> nil) and (name in catSet) then
+        continue;
+  
+      var sl := s;
+  
+      if not ((sl = 'true') or (sl = 'false') or (sl = 'True') or (sl = 'False') or
+              (sl = 'yes') or (sl = 'no') or (sl = 'Yes') or (sl = 'No')) then
+        canBool[nj] := false;
+  
+      var iv: integer;
+      if not TryStrToInt(s, iv) then
+        canInt[nj] := false;
+  
+      var fv: real;
+      if not TryStrToReal(s, fv) then
+        canFloat[nj] := false;
+
+      var dtv: System.DateTime;
+      if not TryStrToDateTime(s, dtv) then
+        canDateTime[nj] := false;
+    end;
+  end;
+  
+  if headers = nil then
+    Error(ER_EMPTY_CSV);
+  
+  if inferCategorical then
+    for var j := 0 to newColCount - 1 do
+    begin
+      var name := headers[j];
+      
+      if (columnTypes <> nil) and columnTypes.ContainsKey(name) then continue;
+      if (forceStrSet <> nil) and (name in forceStrSet) then continue;
+      if (catSet <> nil) and (name in catSet) then continue;
+      
+      if canBool[j] or canInt[j] or canFloat[j] or canDateTime[j] then continue;
+      
+      var uc := uniqueSet[j].Count;
+      if uc = 0 then continue;
+      
+      var n := nonMissingCount[j];
+      if n = 0 then continue;
+      
+      var ratio := uc / n;
+      
+      var maxFreq := 0;
+      foreach var kv in freqMap[j] do
+        if kv.Value > maxFreq then
+          maxFreq := kv.Value;
+      
+      var isLowCardinality := uc <= maxCategoricalCardinality;
+      var isReasonableRatio := ratio <= maxCategoricalRatio;
+      
+      if isLowCardinality and
+         (isReasonableRatio or (uc <= 100)) and
+         (ratio < idThreshold) and
+         (maxFreq >= minFrequency) then
+        autoCat[j] := true;
+  end;
+
+  var df := new DataFrame;
+  
+  var intData := new IntArray[newColCount];
+  var floatData := new RealArray[newColCount];
+  var strData := new StringArray[newColCount];
+  var boolData := new BoolArray[newColCount];
+  var dtData := new DateTimeArray[newColCount];
+  var valid := new BoolArray[newColCount];
+  
+  for var j := 0 to newColCount - 1 do
+  begin
+    valid[j] := new boolean[rowCount];
+    
+    if canBool[j] then
+      boolData[j] := new boolean[rowCount]
+    else if canInt[j] then
+      intData[j] := new integer[rowCount]
+    else if canFloat[j] then
+      floatData[j] := new real[rowCount]
+    else if canDateTime[j] then
+      dtData[j] := new System.DateTime[rowCount]
+    else
+      strData[j] := new string[rowCount];
+  end;
+  
+  var row := 0;
+  first := true;
+  foreach var line in linesArray do
+  begin
+    if first then
+    begin
+      first := false;
+      if hasHeader then continue;
+    end;
+    
+    ScanFieldsQuoted(line, delimiter, starts, lens, quoted, actualCount, unclosedQuote);
+    
+    if unclosedQuote then
+    begin
+      if strict then
+        Error(ER_CSV_UNCLOSED_QUOTE);
+      
+      for var j := 0 to newColCount - 1 do
+        valid[j][row] := false;
+      
+      row += 1;
+      continue;
+    end;
+    
+    if (actualCount <> originalColCount) and strict then
+      Error(ER_CSV_COLUMN_COUNT_MISMATCH, originalColCount, actualCount);
+    
+    for var j := 0 to originalColCount - 1 do
+    begin
+      var nj := map[j];
+      if nj = -1 then continue;
+      
+      if missingValues = nil then
+      begin
+        if IsMissingRange(line, starts[j], lens[j]) then
+        begin
+          valid[nj][row] := false;
+          continue;
+        end;
+      end
+      else
+      begin
+        var s := if lens[j] > 0 then line.Substring(starts[j]-1, lens[j]) else '';
+        if trimWhitespace then
+          s := s.Trim;
+        if s in missing then
+        begin
+          valid[nj][row] := false;
+          continue;
+        end;
+      end;
+      
+      if canBool[nj] then
+      begin
+        var bv: boolean;
+        if TryStrToBoolStrictRange(line, starts[j], lens[j], bv) then
+        begin
+          boolData[nj][row] := bv;
+          valid[nj][row] := true;
+        end
+        else
+        begin
+          if strict then
+          begin
+            var s := if lens[j] > 0 then line.Substring(starts[j]-1, lens[j]) else '';
+            if trimWhitespace then
+              s := s.Trim;
+            Error(ER_CSV_INVALID_BOOL, s, headers[nj]);
+          end;
+          valid[nj][row] := false;
+        end;
+      end
+      else if canInt[nj] then
+      begin
+        var iv: integer;
+        if TryStrToInt(line, starts[j], lens[j], iv) then
+        begin
+          intData[nj][row] := iv;
+          valid[nj][row] := true;
+        end
+        else
+        begin
+          if strict then
+          begin
+            var s := if lens[j] > 0 then line.Substring(starts[j]-1, lens[j]) else '';
+            if trimWhitespace then
+              s := s.Trim;
+            raise new Exception($'Invalid int "{s}" in column {headers[nj]}');
+          end;
+          valid[nj][row] := false;
+        end;
+      end
+      else if canFloat[nj] then
+      begin
+        var fv: real;
+        if TryStrToReal(line, starts[j], lens[j], fv) then
+        begin
+          floatData[nj][row] := fv;
+          valid[nj][row] := true;
+        end
+        else
+        begin
+          if strict then
+          begin
+            var s := if lens[j] > 0 then line.Substring(starts[j]-1, lens[j]) else '';
+            if trimWhitespace then
+              s := s.Trim;
+            raise new Exception($'Invalid float "{s}" in column {headers[nj]}');
+          end;
+          valid[nj][row] := false;
+        end;
+      end
+      else if canDateTime[nj] then
+      begin
+        var dtv: System.DateTime;
+        var s := if lens[j] > 0 then line.Substring(starts[j]-1, lens[j]) else '';
+        if trimWhitespace then
+          s := s.Trim;
+
+        if TryStrToDateTime(s, dtv) then
+        begin
+          dtData[nj][row] := dtv;
+          valid[nj][row] := true;
+        end
+        else
+        begin
+          if strict then
+            raise new Exception($'Invalid DateTime "{s}" in column {headers[nj]}');
+          valid[nj][row] := false;
+        end;
+      end
+      else
+      begin
+        var s := if lens[j] > 0 then line.Substring(starts[j]-1, lens[j]) else '';
+        s := ParseCsvField(s, quoted[j]);
+        if trimWhitespace then
+          s := s.Trim;
+        strData[nj][row] := s;
+        valid[nj][row] := true;
+      end;
+    end;
+    
+    row += 1;
+  end;
+  
+  for var j := 0 to newColCount - 1 do
+  begin
+    if canBool[j] then
+      df.AddBoolColumn(headers[j], boolData[j], valid[j])
+    else if canInt[j] then
+      df.AddIntColumn(headers[j], intData[j], valid[j])
+    else if canFloat[j] then
+      df.AddFloatColumn(headers[j], floatData[j], valid[j])
+    else if canDateTime[j] then
+      df.AddDateTimeColumn(headers[j], dtData[j], valid[j])
+    else
+      df.AddStrColumn(headers[j], strData[j], valid[j]);
+  end;
+  
+  var names := new string[newColCount];
+  var types := new ColumnType[newColCount];
+  var cats := new boolean[newColCount];
+  
+  for var j := 0 to newColCount - 1 do
+  begin
+    names[j] := headers[j];
+  
+    if canBool[j] then
+      types[j] := ctBool
+    else if canInt[j] then
+      types[j] := ctInt
+    else if canFloat[j] then
+      types[j] := ctFloat
+    else if canDateTime[j] then
+      types[j] := ctDateTime
+    else
+      types[j] := ctStr;
+  
+    cats[j] := ((catSet <> nil) and (headers[j] in catSet)) or autoCat[j];
+  end;
+  
+  df.SetSchema(new DataFrameSchema(names, types, cats));  
+  
+  Result := df;
+end;
+
+function DetectEncoding(filename: string): Encoding;
+begin
+  var fs := new System.IO.FileStream(
+    filename,
+    System.IO.FileMode.Open,
+    System.IO.FileAccess.Read,
+    System.IO.FileShare.ReadWrite
+  );
+  try
+    // --- BOM check
+    var bom := new byte[3];
+    var n := fs.Read(bom, 0, 3);
+
+    // UTF-8 BOM
+    if (n >= 3) and (bom[0] = $EF) and (bom[1] = $BB) and (bom[2] = $BF) then
+      exit(Encoding.UTF8);
+
+    // --- reset position
+    fs.Position := 0;
+
+    // --- read small chunk
+    var bufferSize := 4096;
+    var buffer := new byte[bufferSize];
+    var readBytes := fs.Read(buffer, 0, bufferSize);
+
+    // --- strict UTF-8 check
+    try
+      var utf8 := new System.Text.UTF8Encoding(false, true); // strict
+      utf8.GetString(buffer, 0, readBytes);
+      exit(Encoding.UTF8);
+    except
+      // not UTF-8
+    end;
+
+    // --- fallback
+    Result := Encoding.Default;
+
+  finally
+    fs.Close;
+  end;
+end;
+
+function FormatDateTimeForPrint(dt: System.DateTime; fmt: string): string;
+begin
+  if fmt <> nil then
+    exit(dt.ToString(fmt, CultureInfo.InvariantCulture));
+
+  if dt.TimeOfDay = System.TimeSpan.Zero then
+    exit(dt.ToString('yyyy-MM-dd', CultureInfo.InvariantCulture));
+
+  Result := dt.ToString('yyyy-MM-dd HH:mm:ss', CultureInfo.InvariantCulture);
+end;
+
+function GetCellTextForPrint(df: DataFrame; cursor: DataFrameCursor; rowIndex, colIndex, decimals: integer; dateTimeFormat: string): string;
+begin
+  cursor.MoveTo(rowIndex);
+
+  if not cursor.IsValid(colIndex) then
+    exit('NA');
+
+  case df.columns[colIndex].Info.ColType of
+    ctInt:   Result := cursor.Int(colIndex).ToString;
+    ctFloat: Result := cursor.Float(colIndex).ToString('F' + decimals);
+    ctStr:   Result := cursor.Str(colIndex);
+    ctBool:  Result := cursor.Bool(colIndex).ToString;
+    ctDateTime: Result := FormatDateTimeForPrint(cursor.DateTime(colIndex), dateTimeFormat);
+  end;
+end;
+
+static function CSVLoader.Load(filename: string; 
+  delimiter: char; hasHeader: boolean;      
+  encoding: Encoding;
+  missingValues: array of string;
+  trimWhitespace: boolean;
+  strict: boolean;
+  columnTypes: Dictionary<string, ColumnType>;
+  sampleSize: integer;
+  ignoreColumns: array of string;
+  inferTypes: boolean;
+  forceStringColumns: array of string;
+  categoricalColumns: array of string;
+  inferCategorical: boolean;
+  maxCategoricalCardinality: integer;
+  maxCategoricalRatio: real;
+  idThreshold: real;
+  minFrequency: integer
+): DataFrame;
+begin
+  var enc := encoding;
+  
+  if enc = nil then
+    enc := DetectEncoding(filename);
+  
+  Result := LoadFromLines(
+    ReadLines(filename, enc),
+    delimiter,
+    hasHeader,
+    missingValues,
+    trimWhitespace,
+    strict,
+    columnTypes,
+    sampleSize,
+    ignoreColumns,
+    inferTypes,
+    forceStringColumns,
+    categoricalColumns,
+    inferCategorical,
+    maxCategoricalCardinality,
+    maxCategoricalRatio,
+    idThreshold,
+    minFrequency
+  );
+end;
+
+function EscapeCsv(s: string; delimiter: char): string;
+begin
+  if s = nil then
+    exit('');
+
+  if s.Contains(#10) or s.Contains(#13) then
+    Error(ER_CSV_MULTILINE_FIELD_NOT_SUPPORTED);
+
+  if (s.Contains(delimiter)) or
+     (s.Contains('"')) then
+  begin
+    s := s.Replace('"', '""');
+    Result := '"' + s + '"';
+  end
+  else
+    Result := s;
+end;
+
+static procedure CsvSaver.Save(df: DataFrame; filename: string;
+  delimiter: char; header: boolean);
+begin
+  if df = nil then
+    ArgumentNullError('df');
+
+  var w := new System.IO.StreamWriter(filename);
+
+  try
+    var schema := df.Schema;
+    var n := schema.ColumnCount;
+
+    // header
+    if header then
+    begin
+      for var i := 0 to n - 1 do
+      begin
+        if i > 0 then w.Write(delimiter);
+        w.Write(EscapeCsv(schema.NameAt(i), delimiter));
+      end;
+      w.WriteLine;
+    end;
+
+    var cur := df.GetCursor;
+
+    while cur.MoveNext do
+    begin
+      for var i := 0 to n-1 do
+      begin
+        if i > 0 then w.Write(delimiter);
+
+        if not cur.IsValid(i) then
+          continue;
+
+        case schema.ColumnTypeAt(i) of
+          ctInt:   w.Write(cur.Int(i));
+          ctFloat: w.Write(cur.Float(i).ToString('G17', CultureInfo.InvariantCulture));
+          ctStr:   w.Write(EscapeCsv(cur.Str(i), delimiter));
+          ctBool:  w.Write(cur.Bool(i));
+          ctDateTime: w.Write(cur.DateTime(i).ToString('s', CultureInfo.InvariantCulture));
+        end;
+      end;
+
+      w.WriteLine;
+    end;
+
+  finally
+    w.Close;
+  end;
+end;
+
+end.
+
+
+
+
+
+
+

@@ -1,0 +1,221 @@
+﻿/// InspectionML — инструменты анализа поведения обученных моделей.
+///
+/// Модуль предназначен для исследования и интерпретации уже обученных
+/// моделей машинного обучения.
+///
+/// Содержит алгоритмы:
+///   • оценки важности признаков
+///   • анализа чувствительности модели
+///   • построения частичных зависимостей 
+///   • диагностических процедур
+///
+/// Область ответственности:
+///   • работает только с обученными моделями (IModel)
+///   • не участвует в обучении
+///   • не вычисляет метрики напрямую
+///   • не изменяет состояние модели
+///
+/// Архитектурный принцип:
+///   • модуль зависит от абстракции IModel
+///   • модели не зависят от данного модуля
+unit InspectionML;
+
+interface
+
+uses MLCoreABC, LinearAlgebraML;
+
+type
+  Inspection = static class
+  public
+  /// PermutationImportance — оценка важности признаков методом перестановок.
+  /// 
+  /// Для каждого признака случайно перемешивает соответствующий столбец
+  /// и измеряет снижение качества модели по заданной функции scoreFunc.
+  /// 
+  /// Текущая версия предназначена для регрессионных моделей.
+  /// 
+  /// Параметры:
+  ///   • model — обученная регрессионная модель;
+  ///   • X — матрица признаков (nSamples × nFeatures);
+  ///   • y — вектор истинных значений;
+  ///   • scoreFunc — функция оценки качества (например, MSE, Accuracy);
+  ///   • seed — начальное значение генератора случайных чисел.
+  /// 
+  /// Возвращает:
+  ///   Вектор важностей признаков длины nFeatures.
+  ///   Чем больше значение, тем сильнее признак влияет на качество модели
+    static function PermutationImportance(model: IRegressor; X: Matrix; y: Vector;
+      scoreFunc: (Vector, Vector) -> real; 
+      nRepeats: integer := 5; 
+      higherIsBetter: boolean := True;
+      seed: integer := -1): Vector;
+
+  /// PermutationImportance — оценка важности признаков методом перестановок.
+  ///
+  /// Текущая версия предназначена для классификационных моделей.
+  /// Для каждого признака случайно перемешивает соответствующий столбец
+  /// и измеряет снижение качества модели по заданной функции scoreFunc.
+  ///
+  /// Параметры:
+  ///   • model — обученная классификационная модель;
+  ///   • X — матрица признаков (nSamples × nFeatures);
+  ///   • y — массив истинных меток классов;
+  ///   • scoreFunc — функция оценки качества (например, Accuracy);
+  ///   • seed — начальное значение генератора случайных чисел.
+  ///
+  /// Возвращает:
+  ///   Вектор важностей признаков длины nFeatures.
+  ///   Чем больше значение, тем сильнее признак влияет на качество модели
+    static function PermutationImportance(model: IClassifier; X: Matrix; y: array of integer;
+      scoreFunc: (array of integer, array of integer) -> real;
+      nRepeats: integer := 5;
+      higherIsBetter: boolean := True;
+      seed: integer := -1): Vector;
+  end;  
+
+implementation
+
+uses MLExceptions;
+uses MLUtilsABC;
+
+const
+  ER_SCORE_FUNC_NULL = 
+    'scoreFunc не может быть nil!!scoreFunc cannot be nil';
+  ER_ARG_OUT_OF_RANGE =
+    'Аргумент {0} имеет недопустимое значение {1}!!Argument {0} has invalid value {1}';
+
+
+static function Inspection.PermutationImportance(
+  model: IRegressor; 
+  X: Matrix; y: Vector;
+  scoreFunc: (Vector, Vector) -> real; 
+  nRepeats: integer;
+  higherIsBetter: boolean;
+  seed: integer): Vector;
+begin
+  if model = nil then
+    ArgumentNullError(ER_MODEL_NULL);
+
+  if scoreFunc = nil then
+    ArgumentNullError(ER_SCORE_FUNC_NULL);
+
+  if X.RowCount <> y.Length then
+    DimensionError(ER_DIM_MISMATCH, X.RowCount, y.Length);
+
+  if nRepeats < 1 then
+    ArgumentOutOfRangeError(ER_ARG_OUT_OF_RANGE, 'nRepeats', nRepeats);
+
+  var baselinePred := model.Predict(X);
+  var baselineScore := scoreFunc(y, baselinePred);
+
+  var n := X.RowCount;
+  var p := X.ColCount;
+
+  var resultVec := new Vector(p);
+
+  var userProvidedSeed: boolean;
+  var baseSeed := ResolveRandomSeed(seed, userProvidedSeed);
+
+  for var j := 0 to p - 1 do
+  begin
+    var acc := 0.0;
+
+    for var r := 0 to nRepeats - 1 do
+    begin
+      var Xperm := X.Clone;
+
+      // --- детерминированный seed для (j, r)
+      var runSeed := baseSeed + j * 100000 + r;
+
+      var rnd := new System.Random(runSeed);
+
+      // --- shuffle столбца j (Fisher–Yates)
+      for var i := n - 1 downto 1 do
+      begin
+        var k := rnd.Next(i + 1);
+        var tmp := Xperm[i,j];
+        Xperm[i,j] := Xperm[k,j];
+        Xperm[k,j] := tmp;
+      end;
+
+      var permPred := model.Predict(Xperm);
+      var permScore := scoreFunc(y, permPred);
+
+      if higherIsBetter then
+        acc += (baselineScore - permScore)
+      else
+        acc += (permScore - baselineScore);
+    end;
+
+    resultVec[j] := acc / nRepeats;
+  end;
+
+  Result := resultVec;
+end;
+
+static function Inspection.PermutationImportance(
+  model: IClassifier;
+  X: Matrix; y: array of integer;
+  scoreFunc: (array of integer, array of integer) -> real;
+  nRepeats: integer;
+  higherIsBetter: boolean;
+  seed: integer): Vector;
+begin
+  if model = nil then
+    ArgumentNullError(ER_MODEL_NULL);
+
+  if scoreFunc = nil then
+    ArgumentNullError(ER_SCORE_FUNC_NULL);
+
+  if X.RowCount <> y.Length then
+    DimensionError(ER_DIM_MISMATCH, X.RowCount, y.Length);
+
+  if nRepeats < 1 then
+    ArgumentOutOfRangeError(ER_ARG_OUT_OF_RANGE, 'nRepeats', nRepeats);
+
+  var baselinePred := model.Predict(X);
+  var baselineScore := scoreFunc(y, baselinePred);
+
+  var n := X.RowCount;
+  var p := X.ColCount;
+
+  var resultVec := new Vector(p);
+
+  var userProvidedSeed: boolean;
+  var baseSeed := ResolveRandomSeed(seed, userProvidedSeed);
+
+  for var j := 0 to p - 1 do
+  begin
+    var acc := 0.0;
+
+    for var r := 0 to nRepeats - 1 do
+    begin
+      var Xperm := X.Clone;
+
+      var runSeed := baseSeed + j * 100000 + r;
+      var rnd := new System.Random(runSeed);
+
+      for var i := n - 1 downto 1 do
+      begin
+        var k := rnd.Next(i + 1);
+        var tmp := Xperm[i,j];
+        Xperm[i,j] := Xperm[k,j];
+        Xperm[k,j] := tmp;
+      end;
+
+      var permPred := model.Predict(Xperm);
+      var permScore := scoreFunc(y, permPred);
+
+      if higherIsBetter then
+        acc += (baselineScore - permScore)
+      else
+        acc += (permScore - baselineScore);
+    end;
+
+    resultVec[j] := acc / nRepeats;
+  end;
+
+  Result := resultVec;
+end;
+
+end.
