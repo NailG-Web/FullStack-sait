@@ -43,4 +43,9 @@ def base():
         VALUES ('adminaccount', 'Наиль', 'Галязутинов', 'pass123')
     ''')
 
+    cursor.execute('''
+        INSERT OR IGNORE INTO tasks (title, text, inputs, outputs)
+        VALUES ('Привет, друг!', 'Компилятор паскаля поздоровался с Вами. Было бы невежливо не ответить ему. Поэтмоу напишите программу, которая выводит: "Привет!".', '[]', '["Привет!"]')
+    ''')
+
     conn.commit()
