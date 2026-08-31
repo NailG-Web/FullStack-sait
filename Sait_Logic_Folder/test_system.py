@@ -10,17 +10,15 @@ def Pascal_Code_Checker(code, input, output, name):
     with open(filename, "w", encoding="utf-8") as f:
         f.write(code)
     try:
-        Compiler_Direction = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Compiler_Folder'))
-        Compiler_Path = os.path.join(Compiler_Direction, 'pabcnetc.exe')
-        Code_Path = os.path.abspath(filename)
+        compiler_path = "Compiler_Folder/pabcnetc.exe"
+        pascal_file_path = f"Data_Folder/Solutions_Folder/solution_{name}.pas"
 
         compile_code = subprocess.run(
-            ["mono", Compiler_Path, Code_Path], 
+            ["mono", compiler_path, pascal_file_path],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=5,
-            cwd=Compiler_Direction
+            timeout=5
         )
 
         if compile_code.returncode != 0:
@@ -29,7 +27,7 @@ def Pascal_Code_Checker(code, input, output, name):
         for index, (code_input, expect_output) in enumerate(zip(input, output), start=1):
             try:
                 run_code = subprocess.run(
-                    ["mono", exe_filename],
+                    ["mono", f'solution_{name}.exe'],
                     input=code_input,
                     stderr=subprocess.PIPE,
                     stdout=subprocess.PIPE,
@@ -49,7 +47,7 @@ def Pascal_Code_Checker(code, input, output, name):
                 return False, 'Время истекло', None
         return True, 'Правильно!'
     except Exception as error:
-        return False, "Внутрення ошибка сервера на стороне компилятора", error
+        return False, "Внутрення ошибка сервера! Попробуйте позже!", None
 
     finally:
         if os.path.exists(filename):
