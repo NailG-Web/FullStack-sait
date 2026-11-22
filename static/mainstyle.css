@@ -62,7 +62,7 @@ body{
 }
 
 .message.active.true{
-    background-color: rgb(26, 219, 1);
+    background-color: rgba(13, 156, 0, 0.836);
 }
 
 .message.active.false{

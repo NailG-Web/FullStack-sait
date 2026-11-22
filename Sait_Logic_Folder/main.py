@@ -106,7 +106,7 @@ def give_task_to_js(id):
                 return flask.jsonify({'status': False, 'message': 'Задача не найдена!'}), 404
             return flask.jsonify({'title': task[0], 'text': task[1]})
         except Exception as e:
-            return flask.jsonify({'status': False, 'message': 'Внутренняя ошибка сервера. Попробуйте позже! П'}), 500
+            return flask.jsonify({'status': False, 'message': 'Внутренняя ошибка сервера. Попробуйте позже!'}), 500
 
 
 @app.route('/check_task/<int:id>', methods=['POST'])

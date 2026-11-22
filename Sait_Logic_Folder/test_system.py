@@ -1,56 +1,74 @@
-def Pascal_Code_Checker(code, input, output, name):
+def Pascal_Code_Checker(code, input: list, output: list, name: str):
     import subprocess
     import os
 
-    Compiler_Folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Compiler_Folder'))
-    pure_filename = f"solution_{name}.pas"
-    pure_exe_filename = f"solution_{name}.exe"
-    filename = os.path.join(Compiler_Folder, pure_filename)
-    exe_filename = os.path.join(Compiler_Folder, pure_exe_filename)
-    os.makedirs(Compiler_Folder, exist_ok=True)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    compiler_path = os.path.join(os.path.abspath(os.path.join(current_dir, "..")), "Compiler_Folder", "pabcnetc.dll")
 
-    with open(filename, "w", encoding="utf-8") as f:
+    file_name = f"{name}.pas"
+    exe_file = f"{name}.exe"
+
+    with open(file_name, "w", encoding="utf-8") as f:
         f.write(code)
+
     try:
-        compile_code = subprocess.run(
-            ["mono", "pabcnetc.exe", pure_filename],
+        compile_process = subprocess.run(
+            ["dotnet", compiler_path, file_name],
+            input="\n",
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
-            timeout=5,
-            cwd=Compiler_Folder
+            encoding="utf-8",
+            timeout=5
         )
+    except subprocess.TimeoutExpired:
+        return False, "Время ожидания истекло!", None
+    finally:
+        if os.path.exists(file_name):
+            os.remove(file_name)
 
-        if compile_code.returncode != 0:
-            return False, 'Произошла ошибка компиляции!', f'Ошибка компиляции:\n{compile_code.stderr}'
+    if not os.path.exists(exe_file):
+        return False, "Ошибка на стороне сервера. Попробуйте позже!", None
 
-        for index, (code_input, expect_output) in enumerate(zip(input, output), start=1):
-            try:
-                run_code = subprocess.run(
-                    ["mono", pure_exe_filename],
-                    input=code_input,
-                    stderr=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    text=True,
-                    timeout=1,
-                    cwd=Compiler_Folder
-                )
+    try:
+        for index in range(len(output)):
+            
+            
+            if index < len(input):
+                string_input = str(input[index]).strip() + "\n"
+            else:
+                string_input = "\n" 
+                
+            code_out = output[index]
 
-                if run_code.returncode != 0:
-                    return False, 'Ошибка выполнения программы!', f"Ошибка выполнения на тесте {index}:\n{run_code.stderr}"
+            run_process = subprocess.Popen(
+                ["dotnet", exe_file],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8"
+            ) 
 
-                student_answer = run_code.stdout.strip()
-                right_answer = expect_output.strip()
-                if student_answer != right_answer:
-                    return False, 'Задача решена неверно', f'Решение неверное.\nОжидалось: "{right_answer}", получено: {student_answer}'
+            try:    
+                stdout, stdeer = run_process.communicate(input=string_input, timeout=1)
+
+                if run_process.returncode != 0:
+                    return False, "Ошибка выполнения программы!", f"Ошибка на тесте: {index+1}.\n Ощибка:\n {stdeer}" 
+
+                if stdout.strip() != str(code_out).strip():
+                    return False, "Задача решена неверно!", f"На тесте {index+1} допущена ошибка. \n Ожидалось: '{str(code_out).strip()}', \nПолучено: '{stdout.strip()}'"
+                else:
+                    return True, "Правильное решение!", True
+            
             except subprocess.TimeoutExpired:
-                return False, 'Время истекло', None
-        return True, 'Правильно!'
-    except Exception as error:
-        return False, "Внутрення ошибка сервера! Попробуйте позже!", None
+                run_process.kill()
+                run_process.communicate()
+                return False, "Время ожидания истекло!", None
+    
+    except Exception as e:
+        return False, "Внутренняя ошибка сервера. Попробуйте позже!", str(e)
 
     finally:
-        if os.path.exists(filename):
-            os.remove(filename)
-        if os.path.exists(exe_filename):
-            os.remove(exe_filename)
+        if os.path.exists(exe_file):
+            os.remove(exe_file)

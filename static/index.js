@@ -62,6 +62,7 @@ document.getElementById('submit-btn').addEventListener('click', async function(e
             if (result.status){
                 message_block.classList.add('active', 'true');
                 error_block.classList.remove('active');
+                error_block.textContent = '';
             }else{
                 message_block.classList.add('active', 'false');
                 error_block.classList.add('active');

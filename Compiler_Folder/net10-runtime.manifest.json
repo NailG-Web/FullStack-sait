@@ -1,0 +1,1409 @@
+﻿{
+    "configuration":  "Release",
+    "files":  [
+                  {
+                      "path":  "CodeCompletion.deps.json",
+                      "sha256":  "3327FCB778149F421EEF094651D97A42C1D5DAF480B3C5FD5C38DDEEA4834FA6"
+                  },
+                  {
+                      "path":  "CodeCompletion.dll",
+                      "sha256":  "072C0830D3F11EAB6EA9F2CFCFF4162A0252AF3656A110AFC13765009E0AF94B"
+                  },
+                  {
+                      "path":  "CodeCompletionContracts.deps.json",
+                      "sha256":  "F1392D4B794F2893D69CF5AB7FE102E198F0A94C6F368A5C1716487CFE78A1CA"
+                  },
+                  {
+                      "path":  "CodeCompletionContracts.dll",
+                      "sha256":  "40F6646FEBB80A4C1EDFCDC24C44615C9EE1961FB50294509C6A330B86CCE352"
+                  },
+                  {
+                      "path":  "Compiler.deps.json",
+                      "sha256":  "F4F0AB29F48AECE801C251308BB1AE20C15B4824653494CBD0EBA25A0FB57541"
+                  },
+                  {
+                      "path":  "Compiler.dll",
+                      "sha256":  "97B7C70D1D1EEADAA380FCB64EAF9BDAE8399C73D6E2293DB8B67B8141E2C505"
+                  },
+                  {
+                      "path":  "CompilerTools.deps.json",
+                      "sha256":  "92CB8B594A0BAC10854EA86A2FBD92D6AC378A5CF5C2E64E923DD8E7F672158B"
+                  },
+                  {
+                      "path":  "CompilerTools.dll",
+                      "sha256":  "72168372021DFA9CDEC93A480B6468647AFF83C1010FCC0F3C7F66B29C3486E4"
+                  },
+                  {
+                      "path":  "Errors.deps.json",
+                      "sha256":  "E6C75DFA425E770B3D1668E6EFBEBE1099E8F39057293E32F35B04595A74BA65"
+                  },
+                  {
+                      "path":  "Errors.dll",
+                      "sha256":  "806D7770D262437B51C90564B5CAAAC91B63CC6BB01064A5761396A43D6E5249"
+                  },
+                  {
+                      "path":  "LambdaAnySynToSemConverter.deps.json",
+                      "sha256":  "0A7FED04FE9D1896743940FB274D7F6148E145CF2028B63C27C2C6253AC69258"
+                  },
+                  {
+                      "path":  "LambdaAnySynToSemConverter.dll",
+                      "sha256":  "76F9258C04E31C43E198FE1B4A5C9CA9BF016A4F5BE02DA3FC5AC22CEEA550A8"
+                  },
+                  {
+                      "path":  "LanguageContracts.deps.json",
+                      "sha256":  "4183628637663CD46E59BA9FC30955DF6997973D3B8E25CAF398FF3BF163628C"
+                  },
+                  {
+                      "path":  "LanguageContracts.dll",
+                      "sha256":  "30B99EC72E477AC8FEC06ECE0D3BC09911B7900B9D60A8E70C7E883A28A4C377"
+                  },
+                  {
+                      "path":  "LanguageIntegrator.deps.json",
+                      "sha256":  "700DB88AD7B57463969509BA9B01064512A67560B5137A6EE50C2A39925182FD"
+                  },
+                  {
+                      "path":  "LanguageIntegrator.dll",
+                      "sha256":  "63014A987AC73CB421788A9CB74B5EAD80B0C361586A06927DF4D7A182606760"
+                  },
+                  {
+                      "path":  "Localization.deps.json",
+                      "sha256":  "75AA27D61B49CBF6E8941DDFA81F4B76D0E0BF21684E24FE88ABABE463DA7C91"
+                  },
+                  {
+                      "path":  "Localization.dll",
+                      "sha256":  "535CACE629F21C2D8F8DEA66AF345DFF5451DA971C4F469B059F6897500148C3"
+                  },
+                  {
+                      "path":  "MessagePack.Annotations.dll",
+                      "sha256":  "54075B44E94AE4D0966585D03D769C9820F0A95AFB09513384599804EAFDF1CE"
+                  },
+                  {
+                      "path":  "MessagePack.dll",
+                      "sha256":  "31B252AC35FDDF90BA0C161A516C2B0492B915609A40E09FBFED51A9A9B94086"
+                  },
+                  {
+                      "path":  "Microsoft.Extensions.FileSystemGlobbing.dll",
+                      "sha256":  "BE2897386D1FC215A86D3D1343564E262641751BD846559B0ED8F3FBA77CB102"
+                  },
+                  {
+                      "path":  "Microsoft.NET.StringTools.dll",
+                      "sha256":  "887DEC541CD0A719B7111458EB90A83B4491D6DD24EFF2B16CF03D2782FD26A0"
+                  },
+                  {
+                      "path":  "Microsoft.VisualStudio.LanguageServer.Protocol.dll",
+                      "sha256":  "28E4B5641B74360ECF219A6BFF2BDFF13B1279D96FE2D084A3311BF02A321506"
+                  },
+                  {
+                      "path":  "Microsoft.VisualStudio.Threading.dll",
+                      "sha256":  "138E3548E487152DE355B81303AE98E1BB52A31FE5C9107FA81A15F66404F426"
+                  },
+                  {
+                      "path":  "Microsoft.VisualStudio.Validation.dll",
+                      "sha256":  "59CD5E953CCE597847E515A73A1C0975CD5A6B94921A7B91E81045FA9922F57C"
+                  },
+                  {
+                      "path":  "Nerdbank.MessagePack.dll",
+                      "sha256":  "FC086CE3623A9A3F9213159D438C642D225046E371489E8E7F126D4C62F188FA"
+                  },
+                  {
+                      "path":  "Nerdbank.Streams.dll",
+                      "sha256":  "E5C90FFCB7A0BD0CEDF51AC33E818B9F64045E9839B19701EB73460356631872"
+                  },
+                  {
+                      "path":  "NETGenerator.deps.json",
+                      "sha256":  "6F792E28AE976328E51765C514F4C255534715A337186AB8D0D7C1DEA866CE5F"
+                  },
+                  {
+                      "path":  "NETGenerator.dll",
+                      "sha256":  "85A44D01F96FAD3BD26B097B0C39157C805B1CB6E6742446BE960AB2A626CB2D"
+                  },
+                  {
+                      "path":  "Newtonsoft.Json.dll",
+                      "sha256":  "22C649F75FCE5BE7C7CCDA8880473B634EF69ECF33F5D1AB8AD892CAF47D5A07"
+                  },
+                  {
+                      "path":  "NuGet.Commands.dll",
+                      "sha256":  "93EE5D1C059489F4BFDF306EAD0E8ABE7FB340F67620EFCEF463E3FAD16E97C9"
+                  },
+                  {
+                      "path":  "NuGet.Common.dll",
+                      "sha256":  "C863232A273017D8A82A8BFE058C1CCC95322E2E5076B2138C78112AB63ECA5B"
+                  },
+                  {
+                      "path":  "NuGet.Configuration.dll",
+                      "sha256":  "6566F9CC2A6DB2052CAAB346A53AE89F178DED40C1384BC4441DBE2224D6A5AB"
+                  },
+                  {
+                      "path":  "NuGet.Credentials.dll",
+                      "sha256":  "6CA181DAA28B4DA144FD9F73B7F8C195904AF843CD9151CCC90E20E0DC8D6F14"
+                  },
+                  {
+                      "path":  "NuGet.DependencyResolver.Core.dll",
+                      "sha256":  "1063D0214BED8CC718A8FA71D8B398804429501B9A681FF01DD958A322A97A24"
+                  },
+                  {
+                      "path":  "NuGet.Frameworks.dll",
+                      "sha256":  "52C4E004A50F6E0552AE73843CFF4D68F05C94531287F8FA3DA78283166B1949"
+                  },
+                  {
+                      "path":  "NuGet.LibraryModel.dll",
+                      "sha256":  "0BBA3E72A1AF0D22F25EC9F329456AFBF4D11922899FE0A021036FB2D1C073DE"
+                  },
+                  {
+                      "path":  "NuGet.Packaging.dll",
+                      "sha256":  "80FB5126F79664C8AD628F18041CB13D2C887B071EDC9D8B353B14AF24BC59D1"
+                  },
+                  {
+                      "path":  "NuGet.ProjectModel.dll",
+                      "sha256":  "AF95942DF4C58A4B1A62F52CF269F2DCE8678C7D35FA0C6A83019EE9954D3C70"
+                  },
+                  {
+                      "path":  "NuGet.Protocol.dll",
+                      "sha256":  "A64543C57997A71DFC0DE2453AB4934EE30A2FF0A574004B0E0A82733256ED20"
+                  },
+                  {
+                      "path":  "NuGet.Versioning.dll",
+                      "sha256":  "FC2F75A7A5F3BE9B4C3DCFC21644B871BB5A41ADA8615C92D778713D2A310670"
+                  },
+                  {
+                      "path":  "OptimizerConversion.deps.json",
+                      "sha256":  "E6B43E112FCD2537DBD5CA64D5997CD103069F89C219F6923928078804892AB3"
+                  },
+                  {
+                      "path":  "OptimizerConversion.dll",
+                      "sha256":  "44CB3B6D02D1DCF0E271812A9349928144A73F8983D497445337D8C5C4F747BE"
+                  },
+                  {
+                      "path":  "PABCCompilerController.deps.json",
+                      "sha256":  "80BE512AA765308E45D46A3363A38D186B76526FD766496C1B6EA7AB2E5B8A09"
+                  },
+                  {
+                      "path":  "PABCCompilerController.dll",
+                      "sha256":  "9AF85778A483414AC5B6B258ECB648CA02C288A7BF165B6A612A7F30AAB1428D"
+                  },
+                  {
+                      "path":  "PABCCompilerController.runtimeconfig.json",
+                      "sha256":  "C230A317A54DD960BCBEB5F347F52E18DC665A26F7EFDA2159FCED9A5AC7E097"
+                  },
+                  {
+                      "path":  "PABCCompilerWorker.deps.json",
+                      "sha256":  "7CD3D67512B5B2C4780B9417A138810102C9E37F3AD24CDCB6B13D10F1966555"
+                  },
+                  {
+                      "path":  "PABCCompilerWorker.dll",
+                      "sha256":  "C6144C9C1C6C1FD4CA8D732C19AEA02029A497066DD4234DB29268AEF478AB7E"
+                  },
+                  {
+                      "path":  "PABCCompilerWorker.runtimeconfig.json",
+                      "sha256":  "C230A317A54DD960BCBEB5F347F52E18DC665A26F7EFDA2159FCED9A5AC7E097"
+                  },
+                  {
+                      "path":  "PABCCoreUtils.deps.json",
+                      "sha256":  "AD4B69F0DD842C2846BCE155AAD9D3432DBCAF7B28DCE928E13EE6F8BE07FA20"
+                  },
+                  {
+                      "path":  "PABCCoreUtils.dll",
+                      "sha256":  "525D8EF168F12C748AF153380187A5289FBA320BC528586F47477EC2FAFB3123"
+                  },
+                  {
+                      "path":  "pabcnetc.deps.json",
+                      "sha256":  "6FD405D3695C485037D2A2C3428D1D012E954A785EC52E35FC2B0094827A8CEB"
+                  },
+                  {
+                      "path":  "pabcnetc.dll",
+                      "sha256":  "6FF501B0025581623B2442B78C4D338017D1558BDDCFF92376F9D2967AFA2B18"
+                  },
+                  {
+                      "path":  "pabcnetc.exe",
+                      "sha256":  "362AADE360066471CFD8B10FE864D0C605263C38D3DA8BCA152BEF8441ECCD13"
+                  },
+                  {
+                      "path":  "pabcnetc.runtimeconfig.json",
+                      "sha256":  "C230A317A54DD960BCBEB5F347F52E18DC665A26F7EFDA2159FCED9A5AC7E097"
+                  },
+                  {
+                      "path":  "pabcnetcclear.deps.json",
+                      "sha256":  "921BC7D861BDCD52AF2BDB7F7090D6FB600A029859ECA8E3190E429B5C0470DF"
+                  },
+                  {
+                      "path":  "pabcnetcclear.dll",
+                      "sha256":  "D24E200D490A87DACF6C104DC91FC5597C06E1F0728CB0BD83D0A63F4E2A1FC6"
+                  },
+                  {
+                      "path":  "pabcnetcclear.exe",
+                      "sha256":  "C2344CB126E84823239E5C2E171541DF211BC502A57D5D18375B7B2111862ACF"
+                  },
+                  {
+                      "path":  "pabcnetcclear.runtimeconfig.json",
+                      "sha256":  "C230A317A54DD960BCBEB5F347F52E18DC665A26F7EFDA2159FCED9A5AC7E097"
+                  },
+                  {
+                      "path":  "ParserContracts.deps.json",
+                      "sha256":  "64002DC232B82A4FA5AF0606559B2EE6943F02D1D64843E5B36ED44D130CA268"
+                  },
+                  {
+                      "path":  "ParserContracts.dll",
+                      "sha256":  "BC2A3BD02809F7EB9FE19A9038CC36A6F604B318B9CA55DB2DD6976405D8DD2A"
+                  },
+                  {
+                      "path":  "ParserTools.deps.json",
+                      "sha256":  "C641D3A8EA0777026495E39AC5881FC238799F62E72ECF0CC4AAFD7F9D513F7B"
+                  },
+                  {
+                      "path":  "ParserTools.dll",
+                      "sha256":  "076D303DA06810013D5E3C0A5247EAF994DE76E8CFADC12402CEE2218CCD624E"
+                  },
+                  {
+                      "path":  "PascalABCLanguageInfo.deps.json",
+                      "sha256":  "E14B0F70EACA379D4D15222B3BED45F1A7BE6B0A30E13AE0ABC6B4961009D939"
+                  },
+                  {
+                      "path":  "PascalABCLanguageInfo.dll",
+                      "sha256":  "974084FD7215310F137A490A8A9AFFC42385A9D1AB770C1C741ECC325FC6FE96"
+                  },
+                  {
+                      "path":  "PascalABCNet.LanguageServer.deps.json",
+                      "sha256":  "88B174572AA9B0C7A62F3EC5F1BEBE4AD509820C96BFF09F216CEF5B06367FD8"
+                  },
+                  {
+                      "path":  "PascalABCNet.LanguageServer.dll",
+                      "sha256":  "4EE2FDD2B8652DD9C37E32202077CBF660292096086649D9C749C6A59AAAD782"
+                  },
+                  {
+                      "path":  "PascalABCNet.LanguageServer.runtimeconfig.json",
+                      "sha256":  "C230A317A54DD960BCBEB5F347F52E18DC665A26F7EFDA2159FCED9A5AC7E097"
+                  },
+                  {
+                      "path":  "PascalABCNet.LanguageServices.deps.json",
+                      "sha256":  "631D8D6B4DAA16FB24641CF8C6159521A72147AC6BAB7150A5A936C5260B2483"
+                  },
+                  {
+                      "path":  "PascalABCNet.LanguageServices.dll",
+                      "sha256":  "14A04FC7AFA9CF2032B017DB7DF902670AA777A2A3EB8E9DEC7059275E52AC7B"
+                  },
+                  {
+                      "path":  "PascalABCNet.PackageServices.deps.json",
+                      "sha256":  "385B1ED1193559B62202271C8062AC04B521745C32D1EDFE000240ECEB2E6A90"
+                  },
+                  {
+                      "path":  "PascalABCNet.PackageServices.dll",
+                      "sha256":  "9A01F9E5EE90024F0427A1A8D3280A5CED25696E9BA01086943A046D1B527032"
+                  },
+                  {
+                      "path":  "PascalABCParser.deps.json",
+                      "sha256":  "0DA0EF70459894497621D7FF2A7DF8342CA3D20505EC2BBCF2D8795D8662B470"
+                  },
+                  {
+                      "path":  "PascalABCParser.dll",
+                      "sha256":  "B84171729FF8DC61897DCA4FAACA9A38274ED7320B98FBA3E54C225EDE31CB0A"
+                  },
+                  {
+                      "path":  "PolyType.dll",
+                      "sha256":  "33D30BC1BAF80B85AD9B428A388D9999EAF20999D555A6E684AA758F4F679968"
+                  },
+                  {
+                      "path":  "SemanticTree.deps.json",
+                      "sha256":  "3D4EF9C2F2CC88AAEC1DDE83D35AB10D8E41E56C2220CF2D2211305B05623872"
+                  },
+                  {
+                      "path":  "SemanticTree.dll",
+                      "sha256":  "F0A0CF6E70DAEA2066478FD60E23AF08EB0F3684A74FE535E3498C6854D56F04"
+                  },
+                  {
+                      "path":  "SPythonLanguageInfo.deps.json",
+                      "sha256":  "F938966C047E774300FA668B78C9BE04054B626D1D11284A42F34179501C2650"
+                  },
+                  {
+                      "path":  "SPythonLanguageInfo.dll",
+                      "sha256":  "67299EE57B2D5B2E296F2B4B126199E27E603E044D8BC7D756468E0FC7AAAEAD"
+                  },
+                  {
+                      "path":  "SPythonParser.deps.json",
+                      "sha256":  "106A6BD9222054DE9D5BFCEDDBD350D059700D4EBFE0B47B369B64A41B0DD196"
+                  },
+                  {
+                      "path":  "SPythonParser.dll",
+                      "sha256":  "5B20A65E5F9039A29496F28D654408032E5F1A3DE5F24FB763C816D446D88701"
+                  },
+                  {
+                      "path":  "SPythonStandardTreeConverter.deps.json",
+                      "sha256":  "73401554560E6DC7251B77EDFBFA63154483CBC083B79CF41EA579239B3F323F"
+                  },
+                  {
+                      "path":  "SPythonStandardTreeConverter.dll",
+                      "sha256":  "7655352ABC9A404114A3AA497315A317F1A37265A127C07DEB7AAE243006745A"
+                  },
+                  {
+                      "path":  "SPythonSyntaxTreeVisitor.deps.json",
+                      "sha256":  "1C58B5FF286C5B925A049B5E5CD09F1AE00838023AA14F8F68B24192205264A8"
+                  },
+                  {
+                      "path":  "SPythonSyntaxTreeVisitor.dll",
+                      "sha256":  "D78B59DEE1A0621E9267676553043B9380F2E5670BDF34E6D51441B0775BC077"
+                  },
+                  {
+                      "path":  "StreamJsonRpc.dll",
+                      "sha256":  "DDC6A4D60E6CC940AAE31FAAFC1FDCDBE520DFA51BEC8DFC7F505449291536D5"
+                  },
+                  {
+                      "path":  "StringConstants.deps.json",
+                      "sha256":  "469AD9EE5F0370ED5ADCD6DB8E652A24B3D2EA323887CA7BF0790BA115158FC3"
+                  },
+                  {
+                      "path":  "StringConstants.dll",
+                      "sha256":  "5965697856A564FBBCEF4680C4DA010A9F5EB0FB14265593856638DA14548E8B"
+                  },
+                  {
+                      "path":  "SyntaxTree.deps.json",
+                      "sha256":  "4E3A64C6FACAC4603A4265319773A9049C384E6AB6611F56850136C108D035A2"
+                  },
+                  {
+                      "path":  "SyntaxTree.dll",
+                      "sha256":  "60BAAB3246DDDF5DFCE719ECB0D1C6D877BFBC09FD5BBFB77FD0D0B0961DB1BC"
+                  },
+                  {
+                      "path":  "SyntaxTreeConverters.deps.json",
+                      "sha256":  "4052AC50149F29DC4AC9275FD28E4B9E8CE275070BE1A96D12E6527F1F6B99D9"
+                  },
+                  {
+                      "path":  "SyntaxTreeConverters.dll",
+                      "sha256":  "033409029668D589BA590E3E801C9FD8190F24178015B2A13F558DFD06F8BB3E"
+                  },
+                  {
+                      "path":  "SyntaxVisitors.deps.json",
+                      "sha256":  "EBD804260EBDBC9B097E624D57872E6E27FE6362FFFEA57D67E0C9D8943ECF34"
+                  },
+                  {
+                      "path":  "SyntaxVisitors.dll",
+                      "sha256":  "51CB952232B1ACA3F41D6F7BDAB44A13A0658A41126BD1A5D78503D7CE8AC95C"
+                  },
+                  {
+                      "path":  "System.Security.Cryptography.Pkcs.dll",
+                      "sha256":  "F4FCECE252AF1532CFBC70FD89B2AFD79F506EE6286F3558994CA41502714EA1"
+                  },
+                  {
+                      "path":  "System.Security.Cryptography.ProtectedData.dll",
+                      "sha256":  "5E04D6CFF3B6FE9706908970CD594861F0C08B3824F7827B2331B5F4FCEE1BD1"
+                  },
+                  {
+                      "path":  "TreeConverter.deps.json",
+                      "sha256":  "203A9407A1047B03BF57A0546379127D0F296707320A101AE2BC2946E7966EA6"
+                  },
+                  {
+                      "path":  "TreeConverter.dll",
+                      "sha256":  "37C790C8EE8269C8FB3D745F83F57B6594465C8DE02F90A48EBEBC6800B138E3"
+                  },
+                  {
+                      "path":  "Lib\\ABCButtons.pas",
+                      "sha256":  "4BD4161F461FE6B9396D31312447655FB6441B84F8F53FE2042F8AC0DBE921AE"
+                  },
+                  {
+                      "path":  "Lib\\ABCDatabases.pas",
+                      "sha256":  "6D3ABFD45176314EC2958B975ED790792F4CCB9347E765A1931A0511A6E86F77"
+                  },
+                  {
+                      "path":  "Lib\\ABCHouse.pas",
+                      "sha256":  "5666706FAAF955212B206273D9A59E1680EA8BEAF728557550C813D2DC75DCAF"
+                  },
+                  {
+                      "path":  "Lib\\ABCObjects.pas",
+                      "sha256":  "BA30A7B7FCEF3A4ACCA4F42D703DF0495C498FC45A2BED11E386A4CF6B9A826A"
+                  },
+                  {
+                      "path":  "Lib\\ABCSprites.pas",
+                      "sha256":  "7484ADD5F11B2EEA9D08AFCD4058ADD1CA35B48C870980C25E07E8CB36F94B74"
+                  },
+                  {
+                      "path":  "Lib\\Arrays.pas",
+                      "sha256":  "44ACE346B49D92E75932AA5F8425A1901C61FE10D7EE326120E3EDF2AFF54A53"
+                  },
+                  {
+                      "path":  "Lib\\BBCMicrobit.pas",
+                      "sha256":  "B3BB9A7BEB5DF177ED98152D366C12B193095EAB355F961FAAF9105229F435DF"
+                  },
+                  {
+                      "path":  "Lib\\BlockFileOfT.pas",
+                      "sha256":  "B483A7514C15D1056F482CF5BD70E0B4A1FB0DBD2486417004304300C18864D4"
+                  },
+                  {
+                      "path":  "Lib\\ClientServer.pas",
+                      "sha256":  "B0E45B0083C64FADDCBD59717A43B5A652A165454A8C4E752F0AC03C713B4931"
+                  },
+                  {
+                      "path":  "Lib\\Collections.pas",
+                      "sha256":  "58BA8D4042C55852147471F2639898A2A9314DFB2A9E0D298C1DBC10C42276A3"
+                  },
+                  {
+                      "path":  "Lib\\Controls.pas",
+                      "sha256":  "A8E47333385DFC068745EA681683CBD687104655EDDF7A181A80EEC78E594F61"
+                  },
+                  {
+                      "path":  "Lib\\Coords.pas",
+                      "sha256":  "0AA077CB97C0AEA3C5BC2CC908597DC0A8DB19DFCE91DAE1438E06014E354D34"
+                  },
+                  {
+                      "path":  "Lib\\Countries.pas",
+                      "sha256":  "F428408A20603B5C227D8FB7EF239768E6DDF9792B12961E109E66590FF4C13B"
+                  },
+                  {
+                      "path":  "Lib\\CRT.pas",
+                      "sha256":  "4888A6A8135A770B66C39F218BA9BA8750EE5913CEBD06FBA7DE50DCC43A3DF7"
+                  },
+                  {
+                      "path":  "Lib\\DataAdapters.pas",
+                      "sha256":  "DD5421814F0BB87F19945D395743F5737A5BA8FD82F77CD9DA7244FFD972D06E"
+                  },
+                  {
+                      "path":  "Lib\\DataFrameABC.pas",
+                      "sha256":  "464DD3A18504F0402DCAE89E5FFC227CA2294CDE0126B07AC1F1B4861070B55E"
+                  },
+                  {
+                      "path":  "Lib\\DataFrameABCCore.pas",
+                      "sha256":  "5551DFA05934844C7329BEFF151CAE90BCDAFAE405D7BFF9780544493D900268"
+                  },
+                  {
+                      "path":  "Lib\\DMCollect.pas",
+                      "sha256":  "BB39CAFC54ADB37EA3EA7012586BDB61D130B50C356FB4F9AA3F39A55007783D"
+                  },
+                  {
+                      "path":  "Lib\\DMTaskMaker.pas",
+                      "sha256":  "8F82C4B551C106D18746A10AFB729E89A59D81212541D48291B39E63AF2E32CC"
+                  },
+                  {
+                      "path":  "Lib\\DMZadan.pas",
+                      "sha256":  "9B41A57B894C4DD4F5C33153214B221CCB7F43223BA359E54214CA09AF716923"
+                  },
+                  {
+                      "path":  "Lib\\Drawman.pas",
+                      "sha256":  "D766B9FF129FB2E32A30F5181327F71EB7632404D3D88D85A121A3AF31494D0E"
+                  },
+                  {
+                      "path":  "Lib\\DrawManField.pas",
+                      "sha256":  "1AD47A5F9D10CBA6C88013F213AC58B9DB3CA7771642A82075EF694134C66E6A"
+                  },
+                  {
+                      "path":  "Lib\\Events.pas",
+                      "sha256":  "250455D5F8192DACD0CEFA3193E6FFA52616C52DE0D1991FB7992F0DBC7644D9"
+                  },
+                  {
+                      "path":  "Lib\\FilesOperations.pas",
+                      "sha256":  "ABDA76EEA4757FF6DD69EA76BCDEE99D5E84C7A86A4E2F1E484027644B3311DA"
+                  },
+                  {
+                      "path":  "Lib\\FormsABC.pas",
+                      "sha256":  "4F2EF70DB76219D71ACF062938ED929F4E50529297B54E6F8BFA5F1372C06F98"
+                  },
+                  {
+                      "path":  "Lib\\Graph3D.pas",
+                      "sha256":  "2354677590AD406923C71B206530FA4B1909B7EF1A489E916B97A6BD43205572"
+                  },
+                  {
+                      "path":  "Lib\\GraphABC.axml",
+                      "sha256":  "6BC06FE310D159751E897B1F1DC72942291E92270C0B8B5B9FA2F4492EE7B201"
+                  },
+                  {
+                      "path":  "Lib\\GraphABC.pas",
+                      "sha256":  "D18741178ADF91982A79860BA75C05B7F726A40833EDDCBAC4D695EC5E9E7820"
+                  },
+                  {
+                      "path":  "Lib\\GraphABCHelper.pas",
+                      "sha256":  "29E50FE8A27DFAC217ED51FE95D02AC1865167EEC18F193059AE2C969EE2216B"
+                  },
+                  {
+                      "path":  "Lib\\GraphWPF.pas",
+                      "sha256":  "B463EA725C10944499A6BCFC2DE8FADDCD25EA794F9BAB9FEE40038289DF42F9"
+                  },
+                  {
+                      "path":  "Lib\\GraphWPFBase.pas",
+                      "sha256":  "98B4F51352EB05F12F4E8F37B7EFE16359BDD5502FF402FEEAABDEFB98FD4B57"
+                  },
+                  {
+                      "path":  "Lib\\IniFile.pas",
+                      "sha256":  "F43D52C5064BCBC7705D23F9D2B6DE73FCDD9CA7284C958C94ED088AAD2D8184"
+                  },
+                  {
+                      "path":  "Lib\\InspectionML.pas",
+                      "sha256":  "D9BE7B1AB3FCE241FD4F70C291461481EE9A3A471FA1F9A9599D11E12B1867F6"
+                  },
+                  {
+                      "path":  "Lib\\LightPT.pas",
+                      "sha256":  "8FA1CA9615CCFB11B9D5F217B0AD0C4A5985B011E2492BF57261D3F096FD084C"
+                  },
+                  {
+                      "path":  "Lib\\LinearAlgebraML.pas",
+                      "sha256":  "DE72AEEA8EF558F790F70D942BA3944277F73BE76A19A7F5A7DE578B23D71C39"
+                  },
+                  {
+                      "path":  "Lib\\MetricsABC.pas",
+                      "sha256":  "0BE6E337928B61642D564951E0D2D2C50AF1089896E07B0787B19F2B2E87A848"
+                  },
+                  {
+                      "path":  "Lib\\MLABC.pas",
+                      "sha256":  "F7701C4C5C2733A5DC852B46624D8A8249503E63D40D993359F706D96A4C2FBA"
+                  },
+                  {
+                      "path":  "Lib\\MLCoreABC.pas",
+                      "sha256":  "8F8BB1BB125F418BE3EA2714F5A0D67C5C1C534B24FC41F14AE375B056E0B627"
+                  },
+                  {
+                      "path":  "Lib\\MLDatasets.pas",
+                      "sha256":  "A330D5D98B9CA35D99C929377B1A7A9FACC09F1BAAA5D2797885E736C44F7CDB"
+                  },
+                  {
+                      "path":  "Lib\\MLExceptions.pas",
+                      "sha256":  "B2C38EE357E70AD08FCC9D64CDCF4D7749B77C84B0B75EC72E142347F0EB47E0"
+                  },
+                  {
+                      "path":  "Lib\\MLModelsABC.pas",
+                      "sha256":  "D3AFE11F70881B952265DE60432CFE46559A2D48FB1F0B3939142B1350EA4CC2"
+                  },
+                  {
+                      "path":  "Lib\\MLPipelineABC.pas",
+                      "sha256":  "E061AC250F03477349E2B2859CDD764613A8A176543B7D4F4E5576EF4A1A75D6"
+                  },
+                  {
+                      "path":  "Lib\\MLUtilsABC.pas",
+                      "sha256":  "50B47383A34FB42C952838CCBC20D2DBD7F4FEBFBE6AEA9EE2CEAC6905CF5636"
+                  },
+                  {
+                      "path":  "Lib\\MPI.pas",
+                      "sha256":  "F98DA24EEC09EA0B474975AFFA29C130BB2980D28230245036347F0661291838"
+                  },
+                  {
+                      "path":  "Lib\\NumLibABC.pas",
+                      "sha256":  "D410C6F854DC26CC7552E19F0379471AA5CD18D7963A1875B57B0D2D03B232E3"
+                  },
+                  {
+                      "path":  "Lib\\NUnitABC.pas",
+                      "sha256":  "7C5EEF8F8F421A6CE936D0757AED84FD3E24A14BADBB4CC1EC96AD7B50F64EB8"
+                  },
+                  {
+                      "path":  "Lib\\Oberon00System.pas",
+                      "sha256":  "D3D387504ED64D7EF7E79C65519FBB81FFF3AC9E9D3AF9FDA37401E49FA90678"
+                  },
+                  {
+                      "path":  "Lib\\OpenCL.pas",
+                      "sha256":  "E0BFDFA291D867A9C247A1551FE67DAA1B6E44D9C76212BD3BF2F5596404F7D3"
+                  },
+                  {
+                      "path":  "Lib\\OpenCLABC.pas",
+                      "sha256":  "368ACA6DD28FD29F745914030EC792A3FA29396359763548F90664B9690BD903"
+                  },
+                  {
+                      "path":  "Lib\\OpenGL.pas",
+                      "sha256":  "E5AF3FE2105D5778FB6A7FB6708E72C11CBAC8FD400D1279B24C4A0060EFC7D1"
+                  },
+                  {
+                      "path":  "Lib\\OpenGLABC.pas",
+                      "sha256":  "84223B843813D40C673E882FE89AF8CFEC16DCDAFB87286AD05DF45251DD111B"
+                  },
+                  {
+                      "path":  "Lib\\PABCExtensions.pas",
+                      "sha256":  "4E77A78DFEFBB04AEDD52ABC0655930531B37A145D01D1DFBF4A3EF768DB8FC4"
+                  },
+                  {
+                      "path":  "Lib\\PABCSystem.axml",
+                      "sha256":  "B9F32BED7558D1BB4137870D1501E1473B59ADBB045C594DA4490B0706182895"
+                  },
+                  {
+                      "path":  "Lib\\PABCSystem.pas",
+                      "sha256":  "B41BF3723765038820446E5FBC57685CB05A315C0976B4BA87C0C9758F0547B5"
+                  },
+                  {
+                      "path":  "Lib\\PlotML.pas",
+                      "sha256":  "014032461C1F2DA0EF1D469566C557FDCFAC0F8706AD9E20A12FC8B15BFDED3C"
+                  },
+                  {
+                      "path":  "Lib\\PlotWPF.pas",
+                      "sha256":  "C68270D5E401BB13231A44A28FC7F27AB806CB2395E1458FBF757E8D2E9CD2E5"
+                  },
+                  {
+                      "path":  "Lib\\PointerTools.pas",
+                      "sha256":  "12D7F309FEC290638C5C69334EBAC212E12CF7D9AF200965C03EE11A5AC50AD0"
+                  },
+                  {
+                      "path":  "Lib\\PointRect.pas",
+                      "sha256":  "3F66C7D8E23022CD2788061460D63E33019668C07320FB0764C7E850478CD00B"
+                  },
+                  {
+                      "path":  "Lib\\PreprocessorABC.pas",
+                      "sha256":  "50CB85FB6DDD5234A468842C8E9618C6D2FF1A8A42DB021769680DED5687A11C"
+                  },
+                  {
+                      "path":  "Lib\\PT4.pas",
+                      "sha256":  "3D26152E22FFBE19E4CFE43EA6741FB054A3CDC119498E8B7DB154946501DC83"
+                  },
+                  {
+                      "path":  "Lib\\PT4Databases.pas",
+                      "sha256":  "4B4F194485FFB98017C5D8310FFFAFACF709214B50AD7442E0BEFD6DD5C3A9AD"
+                  },
+                  {
+                      "path":  "Lib\\PT4Exam.pas",
+                      "sha256":  "976382BE3C846CE17D8474A46094D1E637967708B962948222225F8AA1F54D96"
+                  },
+                  {
+                      "path":  "Lib\\PT4MakerNetX.pas",
+                      "sha256":  "84BEAE5BA041865F069B02055C308982504A89DE9DBC80DA163BC0F8E8D36CC5"
+                  },
+                  {
+                      "path":  "Lib\\PT4TaskMakerNET.pas",
+                      "sha256":  "23416DE196341E00E1A8D0EC5F5AB5F5F8E8F50FF91D6E4693E8AD77774B4A91"
+                  },
+                  {
+                      "path":  "Lib\\PT4_32.pas",
+                      "sha256":  "B477046AB63E12FBB95560B7FEB838715C42636A05202D7ECB48389158A7E1B9"
+                  },
+                  {
+                      "path":  "Lib\\RBDMUtils.pas",
+                      "sha256":  "FDD7BBE7BAF6DD43502BF35BEFA3AA48AC786B117DB3BB45FAEF6F1CAAFBFF7A"
+                  },
+                  {
+                      "path":  "Lib\\RBDMUtilsDemo.pas",
+                      "sha256":  "7BDAFE5DDDF7B90B0B2E533F2241701914D1A8B847E1DEEC55DFAF7029A24FE2"
+                  },
+                  {
+                      "path":  "Lib\\regtasks.dat",
+                      "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+                  },
+                  {
+                      "path":  "Lib\\Robot.pas",
+                      "sha256":  "73EA40B76EB1D86BAFFD0D5BAF1710973FF36C9C9CFD736B9C0115AF7931D074"
+                  },
+                  {
+                      "path":  "Lib\\RobotField.pas",
+                      "sha256":  "4BA0626762F320B89EC7C093B214BB74896034E94B3AE570587E8B490EACAE46"
+                  },
+                  {
+                      "path":  "Lib\\RobotTaskMaker.pas",
+                      "sha256":  "45BF7B7BAD13E96E9C72C93C7ACD12F090311481B4B1BD4C7FDE1A0BFA69FC9F"
+                  },
+                  {
+                      "path":  "Lib\\RobotZadan.pas",
+                      "sha256":  "B84EF01A9D2D0D909D1A5760F7069F3F6E78AB968976953656F6AAFF69CA822D"
+                  },
+                  {
+                      "path":  "Lib\\School.pas",
+                      "sha256":  "A807AD8CF1EECE44C43A0F277D289DCECAA5AB92190C3F6CB0F9614B457D359F"
+                  },
+                  {
+                      "path":  "Lib\\SF.pas",
+                      "sha256":  "14C7F9AB7590C1A9D8F9B26BB1AB2C96651AF192D694739152624E26FED44745"
+                  },
+                  {
+                      "path":  "Lib\\Sockets.pas",
+                      "sha256":  "BF4E579922D0008733BC17A4B045A317DB433B4F6693E83F124A0F8E997ADFB1"
+                  },
+                  {
+                      "path":  "Lib\\Sounds.pas",
+                      "sha256":  "9B0F6897D1716D0238B439856958E24571B6DB1F1595AE468D8F2E7D92D9F539"
+                  },
+                  {
+                      "path":  "Lib\\Speech.pas",
+                      "sha256":  "13888EB85935567320C53164ABF1CECBC9B01E28BE9A0FFEBD91CA6FE29F811E"
+                  },
+                  {
+                      "path":  "Lib\\stddef.h",
+                      "sha256":  "A1E513C0093A6FACA0FA9EDA5C9707CE95735AB0368FD2BC120850FB567CB1E5"
+                  },
+                  {
+                      "path":  "Lib\\Tasks.pas",
+                      "sha256":  "0A0C16E42FD80E27A4839F99C2D2426B3D740E337CE7735C0493B4715E5718AE"
+                  },
+                  {
+                      "path":  "Lib\\Tasks1Arr.pas",
+                      "sha256":  "C74BC53695A8C9EF78BE7E37F6C46D08688A166D9A70941A0E4A02EFCF633663"
+                  },
+                  {
+                      "path":  "Lib\\Tasks1Begin.pas",
+                      "sha256":  "B3B4B7A2B3CFF94568257D90C2315C52D29BB5AB0CEEF0E03E0903E7FA1EFC5F"
+                  },
+                  {
+                      "path":  "Lib\\Tasks1BoolIfCase.pas",
+                      "sha256":  "CF5DB63094992002508806E1E66A54B5CB250F67A8F047ECCC938058B4FCEF0C"
+                  },
+                  {
+                      "path":  "Lib\\Tasks1Loops.pas",
+                      "sha256":  "7595CF705B16C3EA8BCE9AC74B47A2DFD624C07668D1FD0AD7BF9DAA516D3612"
+                  },
+                  {
+                      "path":  "Lib\\TasksArr.pas",
+                      "sha256":  "4BFDB6F22878FB867F08DB43BC5FAB8BFA3C8E642897DF3B0C964C48929910AE"
+                  },
+                  {
+                      "path":  "Lib\\TasksMatr.pas",
+                      "sha256":  "58A62CB10F30592AF32005566350C43E7E8CFAA6AC856A2AAA4AE981027D73B6"
+                  },
+                  {
+                      "path":  "Lib\\TasksStr.pas",
+                      "sha256":  "D2A5C391E024D0E52D38715A068C1C4FA83C0A9030F9AEEBB4B57B9D6DACF8A8"
+                  },
+                  {
+                      "path":  "Lib\\Timers.pas",
+                      "sha256":  "F4E663F23FE72E8EFCDC063CD5E7A10DFD4CE180C74BDB96984EBAEEC4C8C0A1"
+                  },
+                  {
+                      "path":  "Lib\\Turtle.pas",
+                      "sha256":  "C67C525AF241855A6A8347177CE75D5D0C04EB4870F1B0382A0ECEA3997B3828"
+                  },
+                  {
+                      "path":  "Lib\\turtle.png",
+                      "sha256":  "3268C9A008A53C889E451161A7AB936DFD8D31A83C67C4B5FBF8D7D2260CC6A4"
+                  },
+                  {
+                      "path":  "Lib\\TurtleABC.pas",
+                      "sha256":  "42C09903E70559911AB992AA3E906DBE583872343A5A1C8E943A3B305AACE620"
+                  },
+                  {
+                      "path":  "Lib\\TurtleWPF.pas",
+                      "sha256":  "6527C701C9CCD0E575727B92102188AD42963323ECC1F0DD50AA63F258CF92F3"
+                  },
+                  {
+                      "path":  "Lib\\TwoPanelsWindow.pas",
+                      "sha256":  "9E29C6C04CD6D348BC5AA21B2DEDFD52403F6EFC6FF3BE049981D7014A605301"
+                  },
+                  {
+                      "path":  "Lib\\Utils.pas",
+                      "sha256":  "83C020BB9CE2B7FFFD0D7B96F2100E57FB1B3BADFE6D288AD30471F8E89A20F7"
+                  },
+                  {
+                      "path":  "Lib\\ValidationML.pas",
+                      "sha256":  "1CBE20039C61BDC26800D5E7A24BF66E532D48A2B2BA7B2E0D8A8B9FEDA7AB86"
+                  },
+                  {
+                      "path":  "Lib\\VBSystem.vb",
+                      "sha256":  "EACE79AB7B472ABCB828EF673941198F6D5523C780D4203345A8D3B27D1938EE"
+                  },
+                  {
+                      "path":  "Lib\\WPF.pas",
+                      "sha256":  "A48A27AA8CC422B5F551BF1FF755C41FE33811A91915FD7DFDDB80054F994243"
+                  },
+                  {
+                      "path":  "Lib\\WPFObjects.pas",
+                      "sha256":  "6CAA252A0DBE9DBBFFAA6793E456BE9880FDAD8CB6C89AA5F1EAEF34A6DA334B"
+                  },
+                  {
+                      "path":  "Lib\\XLSX.pas",
+                      "sha256":  "2E74F8E931A4A3A4E19AC8DA5EF2A8AF892318D3D67E3C01C00B9AF50D3BF4DB"
+                  },
+                  {
+                      "path":  "Lib\\xPT4MakerNetX.pas",
+                      "sha256":  "73639385B20E9BC44980F8E96983C8A6E7909C591292C70D268597F8D8884245"
+                  },
+                  {
+                      "path":  "Lib\\xPT4TaskMakerNET.pas",
+                      "sha256":  "033C68C56E32CAB0E27033C517B6692D5A9C84B5D884E42D0572C4C697067E77"
+                  },
+                  {
+                      "path":  "Lib\\__RedirectIOMode.pas",
+                      "sha256":  "D0537B6D699AFC429E85E79AF89F77A36116122C3FC585AE1AA8D6FBD4BEF9CD"
+                  },
+                  {
+                      "path":  "Lib\\__RedirectIOMode.vb",
+                      "sha256":  "15A0D8F9D370796737E4CB3EE6511C863DE54718448823359256FCAB2ED07ADC"
+                  },
+                  {
+                      "path":  "Lib\\__RunMode.pas",
+                      "sha256":  "D3994611F41787CAD6C7F982B1657DB2602378C21025F9E3FC0F60C336C6D697"
+                  },
+                  {
+                      "path":  "Lib\\Мозаика.pas",
+                      "sha256":  "B8569133A33AF948D57E5F700166DD985A0F0882FECA3068D419F7967291D69D"
+                  },
+                  {
+                      "path":  "Lib\\МозаикаABC.pas",
+                      "sha256":  "5CA007D81B70098F2189614A1FF0F50F0DEBF06499B6EE76FCDC3538EC5ED547"
+                  },
+                  {
+                      "path":  "Lib\\Робот.pas",
+                      "sha256":  "32DFA631DD97EEA363D234B6120D6548CAE1EC1D606A26461D393D70CDFB3B2F"
+                  },
+                  {
+                      "path":  "Lib\\Чертежник.pas",
+                      "sha256":  "C56E2C9087BBB0A0F28B2864C71E7D5ACF0DD86D227F33E722F52C3A33AA478E"
+                  },
+                  {
+                      "path":  "Lib\\en\\ABCObjects.xml",
+                      "sha256":  "315E6C8B8073506865FF082AB5D185C5BB6A24607EAAD6ACDB441F3B206E18C5"
+                  },
+                  {
+                      "path":  "Lib\\en\\CRT.xml",
+                      "sha256":  "E6BEB9608E58FEB4CC9EF7C46F9D7234041B443A7AEFF8E8C1CFB28D2FDB701C"
+                  },
+                  {
+                      "path":  "Lib\\en\\GraphABC.xml",
+                      "sha256":  "43038CCDCB4B4FA7A0A3C2FEC19F29EC139C9AF3E47124A0334D061B7302936A"
+                  },
+                  {
+                      "path":  "Lib\\en\\PABCSystem.xml",
+                      "sha256":  "F258E972912F6FDB4C57F4B956814346F1D619D28820E034F81FB6392F24F812"
+                  },
+                  {
+                      "path":  "Lib\\SPython\\itertools.pys",
+                      "sha256":  "64E74C35D90CBFB17578EB033ED7E11889C8DE394F73FB405B7D70AFE7CD240F"
+                  },
+                  {
+                      "path":  "Lib\\SPython\\math.pys",
+                      "sha256":  "7116DE33BBF3306D78A097C040C7627AA695062C2E2DC08FA06D6482FC6592F6"
+                  },
+                  {
+                      "path":  "Lib\\SPython\\random1.pys",
+                      "sha256":  "64BCBD0582C9E4CD9AC876901F8C146E7565B788CF6343F100F62F8A7D0BC749"
+                  },
+                  {
+                      "path":  "Lib\\SPython\\SPythonHidden.pas",
+                      "sha256":  "D349E82E5D0EEB9C0C827F4284FAA114B304266BE7103EFF8BBE963057D99A0B"
+                  },
+                  {
+                      "path":  "Lib\\SPython\\SPythonSystem.pas",
+                      "sha256":  "ED09F55414797080F2C322DF5D271548AD942C85144F78A0AC3D104304A1EA80"
+                  },
+                  {
+                      "path":  "Lib\\SPython\\SPythonSystemPys.pys",
+                      "sha256":  "0A402FDE19C7BD5219E7FC1DE5EA57DE3A2F64C6F5D59B10228FBB6EF8F1D743"
+                  },
+                  {
+                      "path":  "Lib\\SPython\\time1.pas",
+                      "sha256":  "C7B3BE4749AC0E4C7D77404B5DB97977A8C1B25BAFF390DDF90540F0ED75FA87"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\.LanguageName",
+                      "sha256":  "BBAE38250EDD5C2B4C2698F388F45D6BE347E9BC8C6B2C0AA9685EA10D0FB084"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\AspectsTree.dat",
+                      "sha256":  "500D95674C4486AF1D0C2FD583836E92CB326C28CE5DDCD1E0200B7B86E06107"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\CodeCompletion.dat",
+                      "sha256":  "E276EC87A5B962A26967370D40F0E7F743AC04BB63CD33DE2EAEA32C744D2211"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\CodeTemplates.dat",
+                      "sha256":  "F6D273300D196C627CE941FD514D764B9C6A633E3C8510521ECD39EF5E647A1B"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\CompilerController.dat",
+                      "sha256":  "4979070D17253D7FACD38CA406573A2AE15DCBB9D24AFFFFFD22F35C2643456F"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\CompilerErrors.dat",
+                      "sha256":  "B1CA2B712BF01ABE39D6E4AFE2E9360E52FCCEB07163E904FB26BBCADFDB41F3"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\Global_loc.dat",
+                      "sha256":  "ACC078F686E943B8967E3F9B43F745C73DC6DC679618BD071CD0D31F93A5FA32"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\InternalErrorReport.dat",
+                      "sha256":  "3BEF5B35D00F3A04AB95D6B3D8EF4015DE471D0E4D56FC83AB953035CF50BD2F"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\LanguageName.info",
+                      "sha256":  "BBAE38250EDD5C2B4C2698F388F45D6BE347E9BC8C6B2C0AA9685EA10D0FB084"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\OpenMPErrors.dat",
+                      "sha256":  "9856AB71CE218019F344A2BEF8E44BA903C7993682507F8238089BE3F0E93423"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\PABCNETC.dat",
+                      "sha256":  "F898204535476DD4D7935CEE59984C5E47AE114AFCE14366274106879245B106"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\ParserErrors.dat",
+                      "sha256":  "32A143A761C86564533F7AA014B44DCAF37A04B49CEC17629E45BD6D1BBCF38A"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\PascalABCParser.dat",
+                      "sha256":  "97F0B6A0DA58109266D90A36E8B7BF46A05AF04A6AB3D0BFA8FCAA0CD09EABCA"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\PT4Provider.dat",
+                      "sha256":  "2275138C19914B80AE455DB83FB5A3ED83DDC894525295CA459298748EE84C8C"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\RuntimeExceptions_ds.dat",
+                      "sha256":  "C2CD5AF5E06E3E0B88EFDDF81195EF86FD955E1406721E9E27124D0FF75C27D8"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\SemanticErrors_ds.dat",
+                      "sha256":  "76CB0F8589669B1CCE8CDF7F011BDDBB07B11CF54E9EAC4D4892127FDC46614A"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\SemanticErrors_ib.dat",
+                      "sha256":  "70126C2BD4789E6460B7A01452CEC05D18041DFACF1CC316645156F10BD23E7C"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\SemanticErrors_ms.dat",
+                      "sha256":  "89B1E0CE2DD55BE321BA4F3FD1DA9704BF0536FCA1B6745F68EF46A20B759356"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\SemanticErrors_nv.dat",
+                      "sha256":  "0B94AC1CCE94B0ABF54D0429A4F43BEEA889CC66BD7C7EC3A1240913AD410F75"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\SemanticErrors_rs.dat",
+                      "sha256":  "52F4CDEC90501E4B2BEE04FDC09E58825EF54D733B477B847A5AFD34C964A9A0"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\SemanticErrors_ssyy.dat",
+                      "sha256":  "585DCE57F095381C077202F4F2258C54B1A288FCFDEF55F722F0413976957090"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\SemanticErrors_ws.dat",
+                      "sha256":  "553F102BBE1B4706626BB98438C7DAB917736A83A4F10486DBE32768B1D30235"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\SPythonParser.dat",
+                      "sha256":  "F9EE5B8061CFA29CAEB0D783B3288A6500A0F97EEB625DDC717017AEE7ED8597"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\SPythonSemantic.dat",
+                      "sha256":  "BD0F3AB53CF3D24678DA6AAC06E78FA9E19F2B48BE6FEBEA316E97ADAF711021"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\SPythonSyntaxTreeVisitorErrors.dat",
+                      "sha256":  "A09B7225CEAECA81410A21F1A17FC765C36EDFB90278A1880E919A982233815D"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\SyantaxTreeVisualisator.dat",
+                      "sha256":  "EBBE697A2C3F2E8610542D139E0E81D12B07D8572033670F37854A6C68F7614C"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\SyntaxTreeVisitorsErrors.dat",
+                      "sha256":  "978B7C175BC36660FDEC7F51721A1B84500AE7F24F599A3D5FA19834F281AC96"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\VisualPascalABCNET.dat",
+                      "sha256":  "9AFB355B8FEA81616D073FC55B7C3A1069DA5DC645CCA273940F129C46501944"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\VisualPascalABCNET_VEC.dat",
+                      "sha256":  "76D3805DABB4DC9E435F3327025CBA188542CF8CA34B3E798BCCF991E1E2ED3A"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\Warnings_ds.dat",
+                      "sha256":  "5880350D5B40A99DABCCA870D9EEC5EE1187B47F02B9012AE22BB6A6A8B0229A"
+                  },
+                  {
+                      "path":  "Lng\\Eng\\Warning_ib.dat",
+                      "sha256":  "0F55FEB28708AB0DFD2B8467FC7276E8081C3D6240B7851439C8DA4387615266"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\.LanguageName",
+                      "sha256":  "FE19563EB795393B1F62C3FCB49EC1013E246534CB4476B77FA98EBEA51E38DE"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\AspectsTree.dat",
+                      "sha256":  "9972456D94DBD9D4F85CF6F2D821A11619A56FE24DC3F76B0C97AF89A3F50FE9"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\CodeCompletion.dat",
+                      "sha256":  "CB6F4CBC489C074018B3911BEE6B3B203E7AF0D4FCBCDEEFFA5DC316AFE8EDCC"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\CodeTemplates.dat",
+                      "sha256":  "336E31C756C76EFF04D0EAC30BB4B0EAEBB5395944ED9D2B32F0EF9B7F25BA4D"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\CompilerController.dat",
+                      "sha256":  "BFA387E7AE70233799BB770CC67F21E6C8A2B3A53C121E29C3F78FA89BF4CB3E"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\CompilerErrors.dat",
+                      "sha256":  "7E774C99F8AB9DB06E7B3BCDBBC3B10F95A66401C8182972D826939E6F3C3752"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\HelpBuilder.dat",
+                      "sha256":  "A9BC9DE6EAE7C30AAD90CAD030A0F74166773B76DE135AD69CE42C9B0BC4BCFD"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\InternalErrorReport.dat",
+                      "sha256":  "D6E33B1C8F0CF7765F6C3C351017966427DBBA51296C2D0BE4094BF9AD054BAF"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\KuMirParser.dat",
+                      "sha256":  "09FB3B4B8DFE403CA841270BBA95CE19F3FA9A1F52060E73F7206A7808C398E8"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\LanguageConvertor.dat",
+                      "sha256":  "345F0CAA47F25E4A28C8D08331596750DF9C66F635B90196F6C8ED85A56AA721"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\LanguageName.info",
+                      "sha256":  "FE19563EB795393B1F62C3FCB49EC1013E246534CB4476B77FA98EBEA51E38DE"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\OpenMPErrors.dat",
+                      "sha256":  "EF9FB0E7F3F19902A9AF970FBC53133888263ECA57636728D09468BBC9A3AD6C"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\PABCNETC.dat",
+                      "sha256":  "F48DA8F8BACA64842FA461A7E1B1554F5734485E0E8F4DB2D11D9762CF90F385"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\ParserErrors.dat",
+                      "sha256":  "74653EDBB652CBBA37C78F815CC6EBE3CE7DB8AAA297829D58B01BD0D6B2F506"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\PascalABCParser.dat",
+                      "sha256":  "1BFA023D1017107EADAC4CD910443DE14A77165F6728C52883406CCC90080E57"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\PluginController.dat",
+                      "sha256":  "9E14A0FA6DC6FF81F4880B479240FDF50312C7839DE25CB27870853A96218F0A"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\PT4Provider.dat",
+                      "sha256":  "8DD8EA3E51622A804025151D32AC278733C156363462E4BAD7C3FF40DEF266A4"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\PythonABCParser.dat",
+                      "sha256":  "28D853CA510D872E264634BEEAE4DB1EE940AD0D84443D71F64055023115FBAF"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\RegisterAndControlPlugin.dat",
+                      "sha256":  "3BE2A7A74279775CC6C8A16A8A0F6D6626535E2EC97CD6F4C30724C4EA30E518"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\RuntimeExceptions_ds.dat",
+                      "sha256":  "EFE4D86E1862875F2BB66B11546801613CDE3F335B706001F82E5EF5A2F905C4"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\SemanticErrors_ds.dat",
+                      "sha256":  "D63E8E38CF1D9DED76105D373AE9797A447172BD89E8408DB4459F1AC22FF1DA"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\SemanticErrors_ib.dat",
+                      "sha256":  "5F9BDC23AA712A7602CF4083197E5679D089AE3001DF859679B56EB4474D0748"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\SemanticErrors_ms.dat",
+                      "sha256":  "BEC6AD7BDB1B75FBB680DB47CAE280EE310515DAB63649D71431C208F94EA385"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\SemanticErrors_nv.dat",
+                      "sha256":  "DF6D35048B2AE9E1F77409917EB328FC2B2B7A40ED5636ADEB3762947F349640"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\SemanticErrors_rs.dat",
+                      "sha256":  "89F801D3CACDB631FE235B00933961949F5BF50D1A0DF846705521344ADDD36A"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\SemanticErrors_ssyy.dat",
+                      "sha256":  "D36D980FB4AD0917FFA511F2FA2B0A423360D4032A5892D957DF83A5F0B08A47"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\SemanticErrors_ws.dat",
+                      "sha256":  "CC2D40ADC5BB99285B59E9BE1B943F0CC62235A8485A4DCD2A6D8369A0378912"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\SemanticTreeVisualisator.dat",
+                      "sha256":  "68BB1730DCEB5C53BCD5538568FEF47C1EBA481386082960FD47004570ECFD06"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\SourceTextFormater.dat",
+                      "sha256":  "C5EAC6E1623B5833FAC832194B542D96A94C7D2B32289EBF57291D8D00575FA8"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\SPythonParser.dat",
+                      "sha256":  "48B4D3E2F76A458557D636A001FEBF9CD8B20743430AA07DF6FCC5AABB6999D9"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\SpythonSemantic.dat",
+                      "sha256":  "50078ECE08DDE36EDA400F32BFB1C59B132571B0F9880138AB0E1CAB47D88EDA"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\SPythonSyntaxTreeVisitorErrors.dat",
+                      "sha256":  "7C420CA18194FBA6C9EEC4B1C367A73C211706D437EE5F2D51AB9A2B914E07D2"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\SyntaxTreeVisitorsErrors.dat",
+                      "sha256":  "226B4B1C5A5DF68582206FBEA895314B73541886D427A42730E30DEE9C5A41A1"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\SyntaxTreeVisualisator.dat",
+                      "sha256":  "DD076928C8B8B31A0BF3075E7EEB8243AD20296BA36C2365EDD9DE96F4C8C4C1"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\VisualPascalABCNET.dat",
+                      "sha256":  "C0597D1E35BD6C53C3D84E2DD9034C1C474467029B515733089F01B93C4B394F"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\VisualPascalABCNET_VEC.dat",
+                      "sha256":  "33408031E2AE9ED2936FC0CABBDB4D8E7A00BFE5857EBF41707A245A7FFDC047"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\Warnings_ds.dat",
+                      "sha256":  "B4FC2B251B4446E750FE83FA8BE106302FC2615B41613FD1D5A88B7AEF7F69E8"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\Warning_ib.dat",
+                      "sha256":  "F1F1E9592AAA8E583027DCEB6ADF1BCF7C573004AB72860683EE47892B0608A9"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\_Global",
+                      "sha256":  "35839CB11C5DF6234BF6F4D6E7E794F4E17A39F6643683672C39AD028FAC9D16"
+                  },
+                  {
+                      "path":  "Lng\\Rus\\_Global_loc",
+                      "sha256":  "FCDF91FC8F22A217C62B23C695195B98A2C032FA8B424DBCFA0BD39FC6FE1FE3"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\.LanguageName",
+                      "sha256":  "1EDFA748441014210CD3945A998B728FFC440BEE43132431ED541A866D5C445A"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\AspectsTree.dat",
+                      "sha256":  "F8B91D7E5CB1628CF4B566D277152BB0D22CA7E4A4E31751A6842588D362B453"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\CodeCompletion.dat",
+                      "sha256":  "5520CF2BB45BC8401FEC7E3ED93A7012A39368DA35D7BE78BF51BBD43C95160B"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\CompilerController.dat",
+                      "sha256":  "4480CFB6BE6AB8E9CC9D0C4938413B1606013B0E8E2C6364FEDA17D168579ED7"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\CompilerErrors.dat",
+                      "sha256":  "80D53DD1CAEBE9C00D1BFCC1A9FF70F392F00A5521F255F3D4EDB2AD9E3766B7"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\HelpBuilder.dat",
+                      "sha256":  "8EB4A85081DACB5A81A00E92F1703872D978BC1FFE9EBFF68348B671F1F610F5"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\InternalErrorReport.dat",
+                      "sha256":  "833BBBF9467129D9BB3B709BD048C319E3A3895912725D909501261F843297B9"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\KuMirParser.dat",
+                      "sha256":  "09FB3B4B8DFE403CA841270BBA95CE19F3FA9A1F52060E73F7206A7808C398E8"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\LanguageConvertor.dat",
+                      "sha256":  "0C524AB4D8D912D189902A6411BF1B64150C3A5E1D3702E5CAB6D7CBBDC46AB9"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\OpenMPErrors.dat",
+                      "sha256":  "28A849D2C11F03D2BE788EFAAB20CF957C501E4E88EF6B4CDD0D8B1E59F49601"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\PABCNETC.dat",
+                      "sha256":  "B23DAED222E45061FB9F69FC92D5FB4F3AC980EDEB80F2AA0EF48EFB135992BF"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\ParserErrors.dat",
+                      "sha256":  "13921BBFCB3003D1257FABE78DFB3BB9A2CE9987F32EC9A6690184AB466AFCA2"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\PascalABCParser.dat",
+                      "sha256":  "042B408F79B5C7AA11C54C06B3C12BB06920EBC696FD70740165890A3E6661D9"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\PluginController.dat",
+                      "sha256":  "9E14A0FA6DC6FF81F4880B479240FDF50312C7839DE25CB27870853A96218F0A"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\PT4Provider.dat",
+                      "sha256":  "26365455987E822ACA5A59920708081639D7C7070B377BF1D1F2CB6510AA22BB"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\PythonABCParser.dat",
+                      "sha256":  "28D853CA510D872E264634BEEAE4DB1EE940AD0D84443D71F64055023115FBAF"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\RuntimeExceptions_ds.dat",
+                      "sha256":  "7D29F19DB6DB4D2632FBF7A2CAA934E5CDE58CB1F6EBA9AAE8A757618EA29E20"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\SemanticErrors_ds.dat",
+                      "sha256":  "83B9C47048CBF4CBC15D967B6B09957E38FE9A0ABB68AB6BF1F1C25055BBC06F"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\SemanticErrors_ib.dat",
+                      "sha256":  "62C23231E17A259504E7338733C877CE67F5E10093DAC7C8A35CE4999E533AFC"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\SemanticErrors_ms.dat",
+                      "sha256":  "2187B2B1FAE4992B1E160EAD319405CDA54B90D05FC3A15DC902B10A68B33DAF"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\SemanticErrors_nv.dat",
+                      "sha256":  "4368E536BB3D9F1E12B88FF7FD144B98F377441DA8978CD4997ABE3B87533811"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\SemanticErrors_rs.dat",
+                      "sha256":  "437AD090155D658C257CCC440BEDA3195B127BF1C130DA0905B82C2B613C5BD4"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\SemanticErrors_ssyy.dat",
+                      "sha256":  "1169FB9132B2EFB8D6E40C6EED01D145F37AC7EDD69FCA8C56E86B02DE35AD67"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\SemanticTreeVisualisator.dat",
+                      "sha256":  "B48853882D8EBDAB676B9E4991B4E11B221B8BAED061398E5D86E533D235E141"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\SourceTextFormater.dat",
+                      "sha256":  "98287C88362C6E4868648B7FE9D5330591537F0D39D77142E173F9A8CEEDB209"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\SyntaxTreeVisitorsErrors.dat",
+                      "sha256":  "076A0AA3449D84CA806F51D4443C08F5B641DE2807385A8C89CF765A9ABD4CBD"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\SyntaxTreeVisualisator.dat",
+                      "sha256":  "0003EC7ECD0FED0952B2EFABD13C2A0A724C8BFC180030E0E054C0BE368A4E6D"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\VisualPascalABCNET.dat",
+                      "sha256":  "EE0AF88FCD4A5F461CAF84114FCB791E17FAF0834989238897745B0106F2C08A"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\VisualPascalABCNET_VEC.dat",
+                      "sha256":  "F5694885C7939A3E67B97483BADBBC4E03D1D16BB5941E1445F085C4E42864F6"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\Warnings_ds.dat",
+                      "sha256":  "80C3B9F5C091FD1FF647F7522764721D7C00A899ACCCB83DBBC9D5B10BA70AD4"
+                  },
+                  {
+                      "path":  "Lng\\Ukr\\Warning_ib.dat",
+                      "sha256":  "0C482391E912AF87A1C8C713DE43FC41FC598B16C5617DC8089688815327E6A7"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\.LanguageName",
+                      "sha256":  "ED0C0763E6B7D919ECB643F076A81AA50EB74A12C74E7A1843B8F658827DABAF"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\AspectsTree.dat",
+                      "sha256":  "9421E71FE5E934BCBAB1DC91E9D7B36EA8CDA0D9400275FA804DAE24AE64C600"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\CodeCompletion.dat",
+                      "sha256":  "22B34682B30D8C0A4729485C133F8E0327351D5F7ACFDC13E62735B04F640D0B"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\CodeTemplates.dat",
+                      "sha256":  "F7961F2462DD3ECC091704C54053B31DD116AAA415F71465264E47B1CB68B5B4"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\CompilerController.dat",
+                      "sha256":  "C1434E3BA3C887295C110500C07E9BD8EC01C34C8C28629FC0AF230B624D2888"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\CompilerErrors.dat",
+                      "sha256":  "D1285E972FA11E1D25A29E50EF91CFFA92794B0CA6B00A5C61B0CCC46D5B8A48"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\Global_loc.dat",
+                      "sha256":  "02949D1C9FD921A6E24BCEA9D9DE9CAFEFF30EB155F157846840AAB30A961241"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\InternalErrorReport.dat",
+                      "sha256":  "6CFD53E9B76F4989D4B0F37FAC71C8EAF607D2285BBFB90BA38CFBA0331F9711"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\LanguageName.info",
+                      "sha256":  "ED0C0763E6B7D919ECB643F076A81AA50EB74A12C74E7A1843B8F658827DABAF"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\OpenMPErrors.dat",
+                      "sha256":  "0D7FE206CD55641A3EBADD2B54852A655BD5617A682B6FB88C4E95170D923111"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\PABCNETC.dat",
+                      "sha256":  "041034134AF4735920385EA31B23626505BC6DACDB266AC80F707BEC95F3B0EA"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\ParserErrors.dat",
+                      "sha256":  "6A6587354F25A1B017755047A3F4C29E49024AEB9CF87E307946CC5F7EA2440F"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\PascalABCParser.dat",
+                      "sha256":  "4A9CA3A8F07E8AA75DC6A46BBA61B7243721055459E0C28D9822B3BB6F8ED30D"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\PT4Provider.dat",
+                      "sha256":  "C639046B4BA8399AD5BA1CACEED3F7BEADDF7E42BB797810FDD452566F92C447"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\RuntimeExceptions_ds.dat",
+                      "sha256":  "C2FE99BB9FF00B45D8ED42B606C37D924CED6A5CBD9AFCC970D4082659CDFA8B"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\SemanticErrors_ds.dat",
+                      "sha256":  "8BD16C04715018547224BBAAC40A7091FBAA8032E5DA474714775CCAC731B31F"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\SemanticErrors_ib.dat",
+                      "sha256":  "F9E6DB4BF78975E8DA04D1FD3366FF435874866F4974D336F3C8EB2BEE35E8F1"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\SemanticErrors_ms.dat",
+                      "sha256":  "2D98FCC300CB4B45A8EAE268B14B7BE7DA264FD5268F2B728AC070252BB5565C"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\SemanticErrors_nv.dat",
+                      "sha256":  "2BB573C575309FB2565F40DA2EE4946BD047340FFF446CD9EB2307F090BC4715"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\SemanticErrors_rs.dat",
+                      "sha256":  "879DF9EC6112BFDB912D9F446C683EF0A4F1D72C811D1D2C9852541B99861251"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\SemanticErrors_ssyy.dat",
+                      "sha256":  "38D11D7C034366A6D341BA82E33CB9E3BE9F02AB8B481051B697801D65ED482E"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\SemanticErrors_ws.dat",
+                      "sha256":  "EBDA2E980127FE91FCA3ED70D43A1D79935C7DE2E03CA9575D5ED14B8FD39BCA"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\SyantaxTreeVisualisator.dat",
+                      "sha256":  "B65D4792CE420BB14B2A9A4933A2A5F9B5CAE16E9F39F1FF2ED5036912359D2E"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\SyntaxTreeVisitorsErrors.dat",
+                      "sha256":  "4F01E593B80F05294DDEED848AE9863D3EA0023BA9F986B1AB4CDECE99C49E6B"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\VisualPascalABCNET.dat",
+                      "sha256":  "BBAE5CD0C180B110279D690DA4A9A0B41E65D5975428E6ADDF97C5A2EED339CA"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\VisualPascalABCNET_VEC.dat",
+                      "sha256":  "79455672ADB792FF61FDF18BDCFD7C9C2000632503C6AE46FE92789000EE1542"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\Warnings_ds.dat",
+                      "sha256":  "4E05154FB755C716CBE0CE3AEB8ED1D88F96F401113E679783C20392366159F6"
+                  },
+                  {
+                      "path":  "Lng\\zh_CN\\Warning_ib.dat",
+                      "sha256":  "5B1E7BD4C4F296FA6747217D9FD3491CBDD3CE17D3AEDC2FF00D881D4AE20F34"
+                  },
+                  {
+                      "path":  "ru\\Microsoft.VisualStudio.LanguageServer.Protocol.resources.dll",
+                      "sha256":  "DF596568999B5C8B00282075C8E65A51D690B06A2B4394F5F94AE9C3A7E04793"
+                  },
+                  {
+                      "path":  "ru\\Microsoft.VisualStudio.Threading.resources.dll",
+                      "sha256":  "FF177FD4F159895D050FD7A19C4632B8E69792E79EF181F3AA1AF9AE6C770F21"
+                  },
+                  {
+                      "path":  "ru\\Microsoft.VisualStudio.Validation.resources.dll",
+                      "sha256":  "DB19D56C8E725FC91182FFC75C3803C5D6CA9F0DC6D99D695CBF4E30ACC56FCE"
+                  },
+                  {
+                      "path":  "ru\\StreamJsonRpc.resources.dll",
+                      "sha256":  "5A32D75F02D6DE17CFABE4F1F7FE57191A5549FCC11D5975FE77427826B38DEA"
+                  },
+                  {
+                      "path":  "runtimes\\win\\lib\\net8.0\\System.Security.Cryptography.Pkcs.dll",
+                      "sha256":  "443C614AB2F18918770EE5187E5DEB39CD09C06A475CA6ED58C7A4B466D3E658"
+                  }
+              ]
+}

@@ -1,0 +1,99 @@
+﻿import PABCSystem
+
+pi = 3.14159265358979
+
+def sqrt(x: float) -> float:
+    return PABCSystem.Sqrt(x)
+
+def trunc(x: float) -> int:
+    return PABCSystem.Trunc(x)
+
+def floor(x: float) -> int:
+    return PABCSystem.Floor(x)
+    
+def ceil(x: float) -> int:
+    return PABCSystem.Ceil(x)
+
+def log(x: float) -> float:
+    return PABCSystem.Log(x)
+
+def log1p(x: float) -> float:
+    return PABCSystem.Log(1+ x)
+
+def log2(x: float) -> float:
+    return PABCSystem.Log2(x)
+
+def log10(x: float) -> float:
+    return PABCSystem.Log10(x)
+    
+def log(x: float, base: int) -> float:
+    return PABCSystem.LogN(base, x)
+
+def exp(x: float) -> float:
+    return PABCSystem.Exp(x)
+
+def expm1(x: float) -> float:
+    return PABCSystem.Exp(x - 1)
+
+def exp2(x: float) -> float:
+    return PABCSystem.Exp(log(2) * x)
+
+def sin(x: float) -> float:
+    return PABCSystem.Sin(x)
+
+def sinh(x: float) -> float:
+    return PABCSystem.Sinh(x)
+
+def cos(x: float) -> float:
+    return PABCSystem.Cos(x)
+
+def cosh(x: float) -> float:
+    return PABCSystem.Cosh(x)
+
+def tan(x: float) -> float:
+    return PABCSystem.Tan(x)
+    
+def tanh(x: float) -> float:
+    return PABCSystem.Tanh(x)
+    
+def acos(x: float) -> float:
+    return PABCSystem.ArcCos(x)
+
+def asin(x: float) -> float:
+    return PABCSystem.ArcSin(x)
+
+def atan(x: float) -> float:
+    return PABCSystem.ArcTan(x)
+
+def atan2(y: float, x: float) -> float:
+    return PABCSystem.ArcTan(y / x)
+
+def pow(x: float, y: int) -> float:
+    return PABCSystem.Power(x, y)
+
+def cbrt(x: float) -> float:
+    return pow(x, 1/3)
+
+def fabs(x: float) -> float:
+    return PABCSystem.Abs(x)
+
+def pow(x: float, y: float) -> float:
+    return PABCSystem.Power(x, y)
+
+def isqrt(x: int) -> int:
+    return floor(sqrt(x))
+
+def remainder(x: int, y: int) -> int:
+    return x - (x // y) * y
+    
+def factorial(n: int) -> int:
+    if n == 0:
+        return 1
+    return n * factorial(n - 1)
+    
+def perm(n: int, k: int) -> int:
+    return factorial(n) // factorial(n - k)
+
+def comb(n: int, k: int) -> int:
+    return perm(n, k) // factorial(k)
+

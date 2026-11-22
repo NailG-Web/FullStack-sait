@@ -1,0 +1,6 @@
+Data_Folder/Solutions_Folder/*
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
